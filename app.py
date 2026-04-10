@@ -11,7 +11,7 @@ from psycopg2.extras import RealDictCursor
 
 app = Flask(__name__)
 
-DATABASE_URL = os.environ["DATABASE_URL"]
+DATABASE_URL = os.environ["DATABASE_URL"].replace("postgres://", "postgresql://", 1)
 VALID_LABELS = {"Buyer", "Seller", "Broker", "Other"}
 
 
