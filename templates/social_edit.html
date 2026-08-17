@@ -1,0 +1,51 @@
+{% extends "base.html" %}
+{% block title %}Edit Social Post — Austin Apex{% endblock %}
+{% block content %}
+<hgroup>
+  <h2>{{ platform_labels.get(post.platform, post.platform) }} post — {{ post.account_owner|title }}</h2>
+  <p class="muted"><a href="{{ url_for('social.list_posts') }}">← Back to social posts</a></p>
+</hgroup>
+
+<form method="post" action="{{ url_for('social.edit', post_id=post.id) }}">
+  <label>Caption
+    <textarea name="caption" rows="8">{{ post.final_caption or post.draft_caption or '' }}</textarea>
+  </label>
+
+  {% if post.photo_urls %}
+  <label>Photos to include</label>
+  <div class="grid">
+    {% for url in post.photo_urls[:6] %}
+    <label>
+      <input type="checkbox" name="photo_url" value="{{ url }}" checked>
+      <img src="{{ url }}" style="width:100%;border-radius:6px;">
+    </label>
+    {% endfor %}
+  </div>
+  {% endif %}
+
+  <label>Schedule for later (optional — leave blank to keep as a draft)
+    <input type="datetime-local" name="scheduled_time"
+           value="{{ post.scheduled_time.strftime('%Y-%m-%dT%H:%M') if post.scheduled_time else '' }}">
+  </label>
+
+  <button type="submit">Save draft</button>
+</form>
+
+<hr>
+
+<div style="display:flex; gap:1rem; align-items:center;">
+  <form method="post" action="{{ url_for('social.approve', post_id=post.id) }}">
+    <button type="submit">Approve{% if post.scheduled_time %} & schedule{% endif %}</button>
+  </form>
+
+  <form method="post" action="{{ url_for('social.publish_now', post_id=post.id) }}" style="display:flex; gap:0.5rem; align-items:center;">
+    <select name="account_owner">
+      {% for o in owners %}
+      <option value="{{ o }}" {% if o == post.account_owner %}selected{% endif %}>{{ o|title }}</option>
+      {% endfor %}
+    </select>
+    <button type="submit" class="contrast">Publish now</button>
+  </form>
+</div>
+<p class="muted">Publishing requires that account to be connected first — see <a href="{{ url_for('social.accounts') }}">Manage connected accounts</a>.</p>
+{% endblock %}

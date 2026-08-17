@@ -1,9 +1,10 @@
 """
 Austin Apex internal dashboard.
 Replaces the original one-route label-approval server with the full
-dashboard: login, contact review inbox, campaign composer, plus the
-original one-click label-approval links (routes/legacy_labels.py) and the
-Google OAuth connect flow (routes/oauth.py).
+dashboard: login, contact review inbox, campaign composer, social post
+composer (routes/social.py), plus the original one-click label-approval
+links (routes/legacy_labels.py) and the Google OAuth connect flow
+(routes/oauth.py).
 """
 import os
 
@@ -54,12 +55,14 @@ def create_app():
     from routes.dashboard import bp as dashboard_bp
     from routes.legacy_labels import bp as legacy_labels_bp
     from routes.oauth import bp as oauth_bp
+    from routes.social import bp as social_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
     app.register_blueprint(oauth_bp)
     app.register_blueprint(contacts_bp)
     app.register_blueprint(campaigns_bp)
+    app.register_blueprint(social_bp)
     app.register_blueprint(legacy_labels_bp)
 
     @app.cli.command("create-user")

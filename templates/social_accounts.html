@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Connected Accounts — Austin Apex{% endblock %}
+{% block content %}
+<hgroup>
+  <h2>Connected accounts</h2>
+  <p class="muted"><a href="{{ url_for('social.list_posts') }}">← Back to social posts</a></p>
+</hgroup>
+
+{% if not meta_configured %}
+<div class="flash flash-error">Facebook/Instagram aren't set up yet — META_APP_ID/META_APP_SECRET need to be configured, and the app needs Meta's Business verification + App Review before this will work.</div>
+{% endif %}
+{% if not linkedin_configured %}
+<div class="flash flash-error">LinkedIn isn't set up yet — LINKEDIN_CLIENT_ID/LINKEDIN_CLIENT_SECRET need to be configured.</div>
+{% endif %}
+
+<table class="review">
+  <thead>
+    <tr><th>Agent</th>{% for p in platforms %}<th>{{ platform_labels[p] }}</th>{% endfor %}</tr>
+  </thead>
+  <tbody>
+    {% for owner in owners %}
+    <tr>
+      <td>{{ owner|title }}</td>
+      {% for p in platforms %}
+      <td>
+        {% set acct = connected.get((p, owner)) %}
+        {% if acct %}
+          <span style="color:#1e4620;">Connected</span>{% if acct.display_name %} ({{ acct.display_name }}){% endif %}<br>
+          <a href="{{ url_for('social.connect_start', platform=p, owner=owner) }}">Reconnect</a>
+        {% else %}
+          <a href="{{ url_for('social.connect_start', platform=p, owner=owner) }}" role="button" class="outline">Connect</a>
+        {% endif %}
+      </td>
+      {% endfor %}
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

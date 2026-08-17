@@ -20,7 +20,10 @@
       <td>{{ l.city }}</td>
       <td>{% if l.list_price %}${{ "{:,.0f}".format(l.list_price) }}{% endif %}</td>
       <td>{{ l.status }}</td>
-      <td><a href="{{ url_for('campaigns.new_step2', listing_id=l.listing_id) }}" role="button">Compose email</a></td>
+      <td>
+        <a href="{{ url_for('campaigns.new_step2', listing_id=l.listing_id) }}" role="button">Compose email</a>
+        <a href="{{ url_for('social.new', listing_id=l.listing_id) }}" role="button" class="outline">Draft social post</a>
+      </td>
     </tr>
     {% endfor %}
   </tbody>

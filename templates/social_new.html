@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Draft a Social Post — Austin Apex{% endblock %}
+{% block content %}
+<hgroup>
+  <h2>{{ listing.address }}, {{ listing.city }}</h2>
+  <p class="muted">Pick who's posting and which platform — Claude will draft a caption you can edit before posting.</p>
+</hgroup>
+
+<form>
+  <label>Post as
+    <select id="account_owner" name="account_owner">
+      <option value="yifan">Yifan</option>
+      <option value="anthony">Anthony</option>
+    </select>
+  </label>
+</form>
+
+<div class="grid">
+  {% for p in platforms %}
+  <form method="post" action="{{ url_for('social.generate', listing_id=listing.listing_id) }}"
+        onsubmit="this.account_owner.value = document.getElementById('account_owner').value;">
+    <input type="hidden" name="platform" value="{{ p }}">
+    <input type="hidden" name="account_owner" value="yifan">
+    <button type="submit">Draft {{ platform_labels[p] }} post</button>
+  </form>
+  {% endfor %}
+</div>
+{% endblock %}

@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Social Posts — Austin Apex{% endblock %}
+{% block content %}
+<hgroup>
+  <h2>Social posts</h2>
+  <p class="muted">
+    <a href="{{ url_for('campaigns.new_step1') }}">Pick a listing to draft a post →</a>
+    &nbsp;|&nbsp;
+    <a href="{{ url_for('social.accounts') }}">Manage connected accounts →</a>
+  </p>
+</hgroup>
+
+{% if posts %}
+<table class="review">
+  <thead><tr><th>Created</th><th>Agent</th><th>Platform</th><th>Caption</th><th>Status</th><th></th></tr></thead>
+  <tbody>
+    {% for p in posts %}
+    <tr>
+      <td>{{ p.created_at.strftime('%b %d, %I:%M %p') if p.created_at else '' }}</td>
+      <td>{{ p.account_owner|title }}</td>
+      <td>{{ platform_labels.get(p.platform, p.platform) }}</td>
+      <td>{{ (p.final_caption or p.draft_caption or '')[:80] }}{% if (p.final_caption or '')|length > 80 %}…{% endif %}</td>
+      <td>
+        {% if p.status == 'posted' %}<span style="color:#1e4620;">Posted</span>
+        {% elif p.status == 'failed' %}<span style="color:#611a15;">Failed</span>
+        {% elif p.status == 'scheduled' %}<span>Scheduled</span>
+        {% elif p.status == 'approved' %}<span>Approved</span>
+        {% else %}<span class="muted">Draft</span>
+        {% endif %}
+      </td>
+      <td><a href="{{ url_for('social.edit', post_id=p.id) }}">Open</a></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted">No social posts yet.</p>
+{% endif %}
+{% endblock %}
