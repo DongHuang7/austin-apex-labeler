@@ -13,6 +13,7 @@ from dotenv import load_dotenv
 from flask import Flask
 from flask_login import LoginManager
 from flask_migrate import Migrate
+from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import generate_password_hash
 
 load_dotenv()
@@ -34,6 +35,11 @@ def _database_url() -> str:
 
 def create_app():
     app = Flask(__name__)
+    # Railway (and Heroku) terminate TLS at the edge and forward plain HTTP
+    # to the container — without this, url_for(..., _external=True) and the
+    # OAuth redirect_uri it builds come out as http://, which Google rejects
+    # since the registered redirect URI is https://.
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
     app.config["SECRET_KEY"] = os.environ["FLASK_SECRET_KEY"]
     app.config["SQLALCHEMY_DATABASE_URI"] = _database_url()
     app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {"pool_pre_ping": True}
