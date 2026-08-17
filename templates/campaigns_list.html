@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+{% block title %}Campaigns — Austin Apex{% endblock %}
+{% block content %}
+<hgroup>
+  <h2>Campaigns</h2>
+  <p><a href="{{ url_for('campaigns.new_step1') }}" role="button">Start a new campaign</a></p>
+</hgroup>
+
+{% if campaigns %}
+<table class="review">
+  <thead><tr><th>Sent</th><th>Subject</th><th>Type</th><th>Recipients</th><th></th></tr></thead>
+  <tbody>
+    {% for c in campaigns %}
+    <tr>
+      <td>{{ c.created_at.strftime('%b %d, %I:%M %p') if c.created_at else '' }}</td>
+      <td>{{ c.subject }}</td>
+      <td>{{ c.email_type }}</td>
+      <td>{{ c.sent_count }}/{{ c.recipient_count }}{% if c.dry_run %} <span class="muted">(dry run)</span>{% endif %}</td>
+      <td><a href="{{ url_for('campaigns.detail', campaign_id=c.id) }}">Details</a></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted">No campaigns sent yet.</p>
+{% endif %}
+{% endblock %}

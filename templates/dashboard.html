@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Austin Apex{% endblock %}
+{% block content %}
+<h2>Welcome, {{ current_user.display_name }}</h2>
+
+<div class="grid">
+  <article>
+    <h3>Contacts to review</h3>
+    <p style="font-size: 2.5rem; margin: 0;">{{ pending_count }}</p>
+    <a href="{{ url_for('contacts.review') }}" role="button">Review now</a>
+  </article>
+  <article>
+    <h3>Send a listing email</h3>
+    <p class="muted">Pick a listing, preview the email, send it to buyers/sellers/brokers.</p>
+    <a href="{{ url_for('campaigns.new_step1') }}" role="button">Start a campaign</a>
+  </article>
+</div>
+
+<h3>Recent campaigns</h3>
+{% if recent_campaigns %}
+<table class="review">
+  <thead><tr><th>Sent</th><th>Subject</th><th>Recipients</th><th></th></tr></thead>
+  <tbody>
+    {% for c in recent_campaigns %}
+    <tr>
+      <td>{{ c.created_at.strftime('%b %d, %I:%M %p') if c.created_at else '' }}</td>
+      <td>{{ c.subject }}</td>
+      <td>{{ c.sent_count }}/{{ c.recipient_count }}{% if c.dry_run %} <span class="muted">(dry run)</span>{% endif %}</td>
+      <td><a href="{{ url_for('campaigns.detail', campaign_id=c.id) }}">Details</a></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted">No campaigns sent yet.</p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,17 @@
+{% extends "base.html" %}
+{% block title %}Log in — Austin Apex{% endblock %}
+{% block content %}
+<article style="max-width: 400px; margin: 3rem auto;">
+  <h2>Austin Apex Dashboard</h2>
+  {% if error %}<div class="flash flash-error">{{ error }}</div>{% endif %}
+  <form method="post">
+    <label>Email
+      <input type="email" name="email" required autofocus>
+    </label>
+    <label>Password
+      <input type="password" name="password" required>
+    </label>
+    <button type="submit">Log in</button>
+  </form>
+</article>
+{% endblock %}

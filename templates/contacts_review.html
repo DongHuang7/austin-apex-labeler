@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Review Contacts — Austin Apex{% endblock %}
+{% block content %}
+<hgroup>
+  <h2>Contacts to review</h2>
+  <p class="muted">New people who emailed Yifan or Anthony but aren't in Google Contacts yet.</p>
+</hgroup>
+
+<div style="display:flex; gap:1rem; align-items:center; margin-bottom:1rem;">
+  <form method="post" action="{{ url_for('contacts.scan') }}" style="margin:0;">
+    <button type="submit">Check for new contacts now</button>
+  </form>
+  <a href="{{ url_for('contacts.history') }}">View history →</a>
+</div>
+
+<form method="get" style="display:flex; gap:1rem; align-items:end; margin-bottom:1rem;">
+  <label>Account
+    <select name="account" onchange="this.form.submit()">
+      <option value="">All</option>
+      <option value="yifan" {% if selected_account == 'yifan' %}selected{% endif %}>Yifan</option>
+      <option value="anthony" {% if selected_account == 'anthony' %}selected{% endif %}>Anthony</option>
+    </select>
+  </label>
+  <label>Suggested category
+    <select name="category" onchange="this.form.submit()">
+      <option value="">All</option>
+      {% for c in categories %}
+      <option value="{{ c }}" {% if selected_category == c %}selected{% endif %}>{{ c }}</option>
+      {% endfor %}
+    </select>
+  </label>
+</form>
+
+{% if rows %}
+<form id="bulk-form" method="post" action="{{ url_for('contacts.bulk_approve') }}"></form>
+
+<table class="review">
+  <thead>
+    <tr>
+      <th><input type="checkbox" onclick="document.querySelectorAll('.row-check').forEach(c => c.checked = this.checked)"></th>
+      <th>Account</th>
+      <th>Name / Email</th>
+      <th>Why Claude suggested this</th>
+      <th>Category</th>
+      <th></th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for row in rows %}
+    <tr>
+      <td><input type="checkbox" class="row-check" name="row_id" value="{{ row.id }}" form="bulk-form"></td>
+      <td>{{ row.account|title }}</td>
+      <td>
+        <strong>{{ row.name or '(no name)' }}</strong><br>
+        <span class="muted">{{ row.email }}</span>
+      </td>
+      <td class="muted">{{ row.suggested_reason }}</td>
+      <td>
+        <select name="category_{{ row.id }}" form="bulk-form" id="cat-{{ row.id }}">
+          {% for c in categories %}
+          <option value="{{ c }}" {% if c == row.suggested_category %}selected{% endif %}>{{ c }}</option>
+          {% endfor %}
+        </select>
+      </td>
+      <td style="white-space:nowrap;">
+        <form method="post" action="{{ url_for('contacts.approve', row_id=row.id) }}" style="display:inline;"
+              onsubmit="this.category.value = document.getElementById('cat-{{ row.id }}').value;">
+          <input type="hidden" name="category" value="{{ row.suggested_category }}">
+          <button type="submit">Approve</button>
+        </form>
+        <form method="post" action="{{ url_for('contacts.reject', row_id=row.id) }}" style="display:inline;">
+          <button type="submit" class="secondary outline">Reject</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+
+<button type="submit" form="bulk-form">Approve selected</button>
+{% else %}
+<p class="muted">Nothing to review right now.</p>
+{% endif %}
+{% endblock %}

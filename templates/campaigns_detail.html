@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}Campaign Detail — Austin Apex{% endblock %}
+{% block content %}
+<hgroup>
+  <h2>{{ campaign.subject }}</h2>
+  <p class="muted">
+    {{ campaign.created_at.strftime('%b %d, %Y %I:%M %p') if campaign.created_at else '' }}
+    {% if campaign.dry_run %} — dry run, nothing was actually sent{% endif %}
+  </p>
+</hgroup>
+
+<p>{{ campaign.sent_count }} sent / {{ campaign.recipient_count }} recipients</p>
+
+<table class="review">
+  <thead><tr><th>Recipient</th><th>Status</th><th>Detail</th></tr></thead>
+  <tbody>
+    {% for s in sends %}
+    <tr>
+      <td>{{ s.recipient_name or s.recipient_email }}{% if s.recipient_name %} <span class="muted">({{ s.recipient_email }})</span>{% endif %}</td>
+      <td>
+        {% if s.status == 'sent' %}<span style="color:#1e4620;">Sent</span>
+        {% elif s.status == 'skipped' %}<span class="muted">Skipped</span>
+        {% elif s.status == 'failed' %}<span style="color:#611a15;">Failed</span>
+        {% endif %}
+      </td>
+      <td class="muted">{{ s.error or '' }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% endblock %}

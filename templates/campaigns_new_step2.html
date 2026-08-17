@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Compose Email — Austin Apex{% endblock %}
+{% block content %}
+<hgroup>
+  <h2>{{ listing.address }}, {{ listing.city }}</h2>
+  <p class="muted"><a href="{{ url_for('campaigns.new_step1') }}">← Back to listings</a></p>
+</hgroup>
+
+<form method="get" action="{{ url_for('campaigns.new_step2', listing_id=listing.listing_id) }}">
+  <div class="grid">
+    <label>Email type
+      <select name="email_type" onchange="this.form.submit()">
+        {% for key, label in email_types.items() %}
+        <option value="{{ key }}" {% if key == email_type %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>Recipients (label group)
+      <select name="recipient_group" onchange="this.form.submit()">
+        {% for g in recipient_groups %}
+        <option value="{{ g }}" {% if g == recipient_group %}selected{% endif %}>{{ g }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>From account
+      <select name="account" onchange="this.form.submit()">
+        {% for a in accounts %}
+        <option value="{{ a }}" {% if a == selected_account %}selected{% endif %}>{{ a|title }}</option>
+        {% endfor %}
+      </select>
+    </label>
+  </div>
+</form>
+
+<h3>Preview</h3>
+<p><strong>Subject:</strong> {{ subject }}</p>
+<div class="email-preview">
+  <iframe srcdoc="{{ html_preview|e }}"></iframe>
+</div>
+
+<form method="post" action="{{ url_for('campaigns.send', listing_id=listing.listing_id) }}" style="margin-top:1rem;">
+  <input type="hidden" name="email_type" value="{{ email_type }}">
+  <input type="hidden" name="recipient_group" value="{{ recipient_group }}">
+  <input type="hidden" name="account" value="{{ selected_account }}">
+  <div style="display:flex; gap:1rem;">
+    <button type="submit" name="dry_run" value="1" class="secondary">Preview send (dry run)</button>
+    <button type="submit" name="dry_run" value="0">Send to {{ recipient_group }}s now</button>
+  </div>
+</form>
+{% endblock %}

@@ -1,0 +1,52 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Austin Apex Dashboard{% endblock %}</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@picocss/pico@2/css/pico.min.css">
+  <style>
+    nav.app-nav { padding: 1rem 0; }
+    .badge { display: inline-block; background: #264653; color: #fff; border-radius: 999px;
+             padding: 0.1rem 0.6rem; font-size: 0.8rem; margin-left: 0.3rem; }
+    .flash { padding: 0.75rem 1rem; border-radius: 6px; margin-bottom: 1rem; }
+    .flash-ok { background: #e6f4ea; color: #1e4620; }
+    .flash-error { background: #fdecea; color: #611a15; }
+    table.review { width: 100%; }
+    table.review td, table.review th { vertical-align: middle; }
+    .muted { color: #777; font-size: 0.9rem; }
+    .email-preview { border: 1px solid #ddd; border-radius: 6px; overflow: hidden; }
+    .email-preview iframe { width: 100%; height: 700px; border: none; }
+  </style>
+</head>
+<body>
+<header class="container">
+  <nav class="app-nav">
+    <ul>
+      <li><strong><a href="{{ url_for('dashboard.home') }}">Austin Apex</a></strong></li>
+    </ul>
+    {% if current_user.is_authenticated %}
+    <ul>
+      <li><a href="{{ url_for('contacts.review') }}">Contacts to Review</a></li>
+      <li><a href="{{ url_for('campaigns.list_campaigns') }}">Campaigns</a></li>
+      <li>
+        <form method="post" action="{{ url_for('auth.logout') }}" style="margin:0;">
+          <button type="submit" class="secondary outline" style="padding:0.3rem 0.8rem;">Log out</button>
+        </form>
+      </li>
+    </ul>
+    {% endif %}
+  </nav>
+</header>
+<main class="container">
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      {% for category, message in messages %}
+        <div class="flash {{ 'flash-error' if category == 'error' else 'flash-ok' }}">{{ message }}</div>
+      {% endfor %}
+    {% endif %}
+  {% endwith %}
+  {% block content %}{% endblock %}
+</main>
+</body>
+</html>

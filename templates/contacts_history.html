@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+{% block title %}Contact History — Austin Apex{% endblock %}
+{% block content %}
+<hgroup>
+  <h2>Contact review history</h2>
+  <p class="muted"><a href="{{ url_for('contacts.review') }}">← Back to pending review</a></p>
+</hgroup>
+
+{% if rows %}
+<table class="review">
+  <thead><tr><th>Decided</th><th>Account</th><th>Name / Email</th><th>Category</th><th>Status</th><th>Error</th></tr></thead>
+  <tbody>
+    {% for row in rows %}
+    <tr>
+      <td>{{ row.decided_at.strftime('%b %d, %I:%M %p') if row.decided_at else '' }}</td>
+      <td>{{ row.account|title }}</td>
+      <td><strong>{{ row.name or '(no name)' }}</strong><br><span class="muted">{{ row.email }}</span></td>
+      <td>{{ row.final_category or row.suggested_category }}</td>
+      <td>
+        {% if row.status == 'applied' %}<span style="color:#1e4620;">Applied</span>
+        {% elif row.status == 'rejected' %}<span class="muted">Rejected</span>
+        {% elif row.status == 'failed' %}<span style="color:#611a15;">Failed</span>
+        {% endif %}
+      </td>
+      <td class="muted">{{ row.error or '' }}</td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted">No decisions yet.</p>
+{% endif %}
+{% endblock %}

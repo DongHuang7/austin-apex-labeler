@@ -1,0 +1,31 @@
+{% extends "base.html" %}
+{% block title %}New Campaign — Austin Apex{% endblock %}
+{% block content %}
+<hgroup>
+  <h2>Pick a listing</h2>
+  <p class="muted">Choose which listing to send an email about.</p>
+</hgroup>
+
+<form method="post" action="{{ url_for('campaigns.refresh_listings') }}" style="margin-bottom:1rem;">
+  <button type="submit">Refresh listings from MLS</button>
+</form>
+
+{% if listings %}
+<table class="review">
+  <thead><tr><th>Address</th><th>City</th><th>Price</th><th>Status</th><th></th></tr></thead>
+  <tbody>
+    {% for l in listings %}
+    <tr>
+      <td>{{ l.address }}</td>
+      <td>{{ l.city }}</td>
+      <td>{% if l.list_price %}${{ "{:,.0f}".format(l.list_price) }}{% endif %}</td>
+      <td>{{ l.status }}</td>
+      <td><a href="{{ url_for('campaigns.new_step2', listing_id=l.listing_id) }}" role="button">Compose email</a></td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted">No listings cached yet — click "Refresh listings from MLS" above.</p>
+{% endif %}
+{% endblock %}
