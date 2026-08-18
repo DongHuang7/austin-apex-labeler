@@ -40,22 +40,44 @@ CLIENT_CONFIG = {
 }
 
 
-def build_flow(redirect_uri: str, state: str = None) -> Flow:
+def build_flow(redirect_uri: str, state: str = None, code_verifier: str = None) -> Flow:
+    # Flow auto-generates a PKCE code_verifier per instance. /start and
+    # /callback build two separate Flow objects (different requests), so
+    # without passing the same code_verifier back in on /callback, Google
+    # rejects the token exchange with "Missing code verifier" — the
+    # verifier has to be threaded through the session same as state.
     return Flow.from_client_config(
-        CLIENT_CONFIG, scopes=SCOPES, redirect_uri=redirect_uri, state=state
+        CLIENT_CONFIG, scopes=SCOPES, redirect_uri=redirect_uri, state=state,
+        code_verifier=code_verifier,
     )
 
 
 def save_token(account: str, creds: Credentials):
     row = GoogleToken.query.filter_by(account=account).first()
-    if row is None:
+    is_new = row is None
+    if is_new:
         row = GoogleToken(account=account)
-        db.session.add(row)
 
-    row.refresh_token_encrypted = encrypt(creds.refresh_token)
+    if creds.refresh_token:
+        row.refresh_token_encrypted = encrypt(creds.refresh_token)
+    elif is_new:
+        # Google didn't return a refresh_token on a brand-new connection —
+        # can happen if a prior grant for this app+account wasn't fully
+        # revoked. refresh_token_encrypted is NOT NULL, so inserting here
+        # would crash; surface a clear, actionable error instead.
+        raise RuntimeError(
+            f"Google didn't return a refresh token for '{account}'. "
+            f"Revoke this app's access at https://myaccount.google.com/permissions "
+            f"and try /oauth/{account}/start again."
+        )
+    # else: re-authorizing an already-connected account without a fresh
+    # refresh_token in the response — keep the one already on file.
+
     row.access_token_encrypted = encrypt(creds.token) if creds.token else None
     row.token_expiry = creds.expiry
     row.scopes = list(creds.scopes) if creds.scopes else SCOPES
+    if is_new:
+        db.session.add(row)
     db.session.commit()
 
 

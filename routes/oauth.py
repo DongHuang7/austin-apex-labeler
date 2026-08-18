@@ -1,6 +1,6 @@
 import secrets
 
-from flask import Blueprint, redirect, request, session, url_for
+from flask import Blueprint, flash, redirect, request, session, url_for
 from flask_login import login_required
 
 from auth.google_auth import build_flow, save_token
@@ -25,6 +25,11 @@ def start(account):
         include_granted_scopes="true",
         prompt="consent",  # forces a refresh_token even on re-auth
     )
+    # code_verifier is only generated inside authorization_url() (it needs
+    # to exist before the code_challenge derived from it can be built), so
+    # it has to be captured after that call, not right after build_flow().
+    session[f"oauth_code_verifier_{account}"] = flow.code_verifier
+
     return redirect(auth_url)
 
 
@@ -38,11 +43,18 @@ def callback(account):
     if not expected_state or request.args.get("state") != expected_state:
         return "Invalid OAuth state — please retry from the dashboard.", 400
 
+    code_verifier = session.pop(f"oauth_code_verifier_{account}", None)
     flow = build_flow(
         redirect_uri=url_for("oauth.callback", account=account, _external=True),
         state=expected_state,
+        code_verifier=code_verifier,
     )
-    flow.fetch_token(authorization_response=request.url)
-    save_token(account, flow.credentials)
+    try:
+        flow.fetch_token(authorization_response=request.url)
+        save_token(account, flow.credentials)
+    except Exception as e:
+        flash(f"Couldn't connect the {account} Google account: {e}", "error")
+        return redirect(url_for("dashboard.home"))
 
+    flash(f"Connected {account}'s Google account.")
     return redirect(url_for("dashboard.home"))
