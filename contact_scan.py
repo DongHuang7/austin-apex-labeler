@@ -48,18 +48,46 @@ def _get_existing_emails(people_service) -> set:
     return emails
 
 
+def _fetch_message_details(gmail_service, message_ids: list) -> dict:
+    """Fetch metadata for many messages using Gmail's batch HTTP API (up to
+    100 per batch) instead of one request per message — a scan with a
+    weekly backlog can easily hit hundreds of messages, and one HTTP
+    round-trip each was slow enough to blow past gunicorn's request
+    timeout and crash the whole scan."""
+    details = {}
+
+    def _callback(request_id, response, exception):
+        if exception is None:
+            details[request_id] = response
+
+    for i in range(0, len(message_ids), 100):
+        batch = gmail_service.new_batch_http_request(callback=_callback)
+        for msg_id in message_ids[i:i + 100]:
+            batch.add(
+                gmail_service.users().messages().get(
+                    userId="me", id=msg_id, format="metadata",
+                    metadataHeaders=["From", "Subject"],
+                ),
+                request_id=msg_id,
+            )
+        batch.execute()
+
+    return details
+
+
 def _fetch_new_senders(gmail_service, since_timestamp: int, existing_emails: set) -> dict:
     query = f"after:{since_timestamp}"
     new_senders = {}
 
     result = gmail_service.users().messages().list(userId="me", q=query, maxResults=500).execute()
     messages = result.get("messages", [])
+    details_by_id = _fetch_message_details(gmail_service, [m["id"] for m in messages])
 
     for msg in messages:
-        detail = gmail_service.users().messages().get(
-            userId="me", id=msg["id"], format="metadata",
-            metadataHeaders=["From", "Subject"],
-        ).execute()
+        detail = details_by_id.get(msg["id"])
+        if detail is None:
+            continue  # this one message's batch sub-request failed; the rest still succeeded
+
         headers = {h["name"]: h["value"] for h in detail.get("payload", {}).get("headers", [])}
         from_header = headers.get("From", "")
         subject = headers.get("Subject", "")
