@@ -16,5 +16,8 @@ if __name__ == "__main__":
     app = create_app()
     with app.app_context():
         results = scan_all_accounts()
-        for account, count in results.items():
-            print(f"{account}: {count} new contact(s) found")
+        for account, r in results.items():
+            if r["error"]:
+                print(f"{account}: FAILED — {r['error']}")
+            else:
+                print(f"{account}: {r['count']} new contact(s) found")

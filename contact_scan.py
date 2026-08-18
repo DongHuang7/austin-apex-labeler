@@ -141,8 +141,13 @@ def scan_account(account: str) -> int:
 
 
 def scan_all_accounts() -> dict:
-    """Returns {account: count_found} for every configured account."""
+    """Returns {account: {"count": int, "error": str|None}}. Each account is
+    scanned independently — one account failing (e.g. not yet connected via
+    /oauth/<account>/start) must not stop the others from being scanned."""
     results = {}
     for account in ACCOUNTS:
-        results[account] = scan_account(account)
+        try:
+            results[account] = {"count": scan_account(account), "error": None}
+        except Exception as e:
+            results[account] = {"count": 0, "error": str(e)}
     return results

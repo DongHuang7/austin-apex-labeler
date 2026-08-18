@@ -37,14 +37,17 @@ def review():
 @bp.route("/review/scan", methods=["POST"])
 @login_required
 def scan():
-    try:
-        results = scan_all_accounts()
-        total = sum(results.values())
+    results = scan_all_accounts()
+    ok = {a: r["count"] for a, r in results.items() if r["error"] is None}
+    failed = {a: r["error"] for a, r in results.items() if r["error"] is not None}
+
+    if ok:
+        total = sum(ok.values())
         flash(f"Scan complete — {total} new contact(s) found "
-              f"({', '.join(f'{a}: {c}' for a, c in results.items())}).")
-    except LookupError as e:
-        # An account hasn't completed the Google OAuth connect flow yet.
-        flash(str(e), "error")
+              f"({', '.join(f'{a}: {c}' for a, c in ok.items())}).")
+    for account, error in failed.items():
+        flash(f"Couldn't scan {account}: {error}", "error")
+
     return redirect(url_for("contacts.review"))
 
 
