@@ -10,11 +10,12 @@
 </hgroup>
 
 {% if listing.photo_urls %}
-<div class="grid">
-  {% for url in listing.photo_urls[:6] %}
+<div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(120px, 1fr)); gap:0.5rem;">
+  {% for url in listing.photo_urls %}
   <img src="{{ url }}" style="width:100%;border-radius:6px;">
   {% endfor %}
 </div>
+<p class="muted">{{ listing.photo_urls|length }} photo{{ 's' if listing.photo_urls|length != 1 }}</p>
 {% else %}
 <p class="muted">
   No MLS photos cached for this listing yet —

@@ -14,10 +14,10 @@
     <textarea name="caption" rows="8">{{ post.final_caption or post.draft_caption or '' }}</textarea>
   </label>
 
-  <label>Photos to include</label>
+  <label>Photos to include ({{ photo_urls|length }} available — only the first checked photo is used when publishing)</label>
   {% if photo_urls %}
-  <div class="grid">
-    {% for url in photo_urls[:6] %}
+  <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(120px, 1fr)); gap:0.5rem;">
+    {% for url in photo_urls %}
     <div>
       <label>
         <input type="checkbox" name="photo_url" value="{{ url }}" checked>

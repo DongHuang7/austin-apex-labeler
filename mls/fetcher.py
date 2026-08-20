@@ -175,7 +175,7 @@ def get_property_url(listing: dict) -> str:
     return f"https://austinapexre.com/properties/{slug}"
 
 
-def get_photo_urls(listing: dict, max_photos=10) -> list:
+def get_photo_urls(listing: dict, max_photos=40) -> list:
     """Extract sorted photo URLs from a listing's Media field."""
     media = listing.get("Media", [])
     if not media:
