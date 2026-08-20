@@ -196,6 +196,10 @@ class UploadedPhoto(db.Model):
     content_type = db.Column(db.String, nullable=False)
     data = db.Column(db.LargeBinary, nullable=False)
     source_url = db.Column(db.String, index=True)
+    # Which post a manual upload was originally added to — lets "Restore
+    # removed photos" find it again even after it's been removed from that
+    # post's photo_urls (removing a photo never deletes this row).
+    social_post_id = db.Column(db.Integer, db.ForeignKey("social_posts.id"))
     uploaded_by = db.Column(db.Integer, db.ForeignKey("users.id"))
     created_at = db.Column(db.DateTime(timezone=True), default=_utcnow)
 

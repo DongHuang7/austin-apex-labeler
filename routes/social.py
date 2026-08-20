@@ -234,6 +234,7 @@ def upload_photo(post_id):
         content_type=content_type,
         data=data,
         uploaded_by=current_user.id,
+        social_post_id=post.id,
     )
     db.session.add(photo)
     db.session.flush()
@@ -255,6 +256,35 @@ def remove_photo(post_id):
     post.photo_urls = [u for u in current if u != url]
     db.session.commit()
     flash("Photo removed.")
+    return redirect(url_for("social.edit", post_id=post.id))
+
+
+@bp.route("/<int:post_id>/photos/restore", methods=["POST"])
+@login_required
+def restore_photos(post_id):
+    """Removing a photo only drops its URL from post.photo_urls — it never
+    deletes the underlying UploadedPhoto row or touches the listing's own
+    cached photos. This brings back everything available: the listing's
+    current photos plus any photo ever manually uploaded to this post."""
+    post = db.get_or_404(SocialPost, post_id)
+    current = ensure_post_cached(post)
+    full = list(current)
+
+    if post.listing:
+        for u in ensure_cached(post.listing):
+            if u not in full:
+                full.append(u)
+
+    for photo in UploadedPhoto.query.filter_by(social_post_id=post.id).all():
+        u = url_for("social.serve_photo", token=photo.token, _external=True)
+        if u not in full:
+            full.append(u)
+
+    added = len(full) - len(current)
+    post.photo_urls = full
+    db.session.commit()
+
+    flash(f"Restored {added} removed photo(s)." if added else "No removed photos to restore.")
     return redirect(url_for("social.edit", post_id=post.id))
 
 

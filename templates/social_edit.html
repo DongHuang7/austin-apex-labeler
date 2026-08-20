@@ -32,6 +32,8 @@
   {% else %}
   <p class="muted">No photos yet — upload one below.</p>
   {% endif %}
+  <button type="submit" formaction="{{ url_for('social.restore_photos', post_id=post.id) }}" formnovalidate
+          class="secondary outline">Restore removed photos</button>
 
   <label>Schedule for later (optional — leave blank to keep as a draft)
     <input type="datetime-local" name="scheduled_time"
