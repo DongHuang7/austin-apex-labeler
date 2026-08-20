@@ -2,13 +2,15 @@ import secrets
 from datetime import datetime, timezone
 
 import requests
-from flask import Blueprint, flash, redirect, render_template, request, session, url_for
+from flask import Blueprint, Response, flash, redirect, render_template, request, session, url_for
 from flask_login import current_user, login_required
 
-from caption_generator import generate_caption
-from models import Listing, SocialAccount, SocialPost, db
+from caption_generator import generate_caption, generate_general_caption
+from models import Listing, SocialAccount, SocialPost, Template, UploadedPhoto, db
 from social import linkedin_client, meta_client
 from social.token_store import get_access_token, save_account_token
+
+MAX_PHOTO_BYTES = 8 * 1024 * 1024
 
 bp = Blueprint("social", __name__, url_prefix="/social")
 
@@ -72,6 +74,114 @@ def generate(listing_id):
     return redirect(url_for("social.edit", post_id=post.id))
 
 
+# ── General (non-listing) posts: festival posts, announcements, etc. ──────
+
+@bp.route("/new_general")
+@login_required
+def new_general():
+    templates = Template.query.filter_by(kind="social").order_by(Template.name).all()
+    template_id = request.args.get("template_id", type=int)
+    caption = request.args.get("caption", "")
+    if template_id:
+        t = db.get_or_404(Template, template_id)
+        caption = t.body
+    return render_template(
+        "social_new_general.html",
+        platforms=PLATFORMS, platform_labels=PLATFORM_LABELS,
+        templates=templates, caption=caption,
+    )
+
+
+@bp.route("/new_general/generate", methods=["POST"])
+@login_required
+def generate_general():
+    platform = request.form.get("platform")
+    account_owner = request.form.get("account_owner")
+    topic = request.form.get("topic", "").strip()
+    caption = request.form.get("caption", "").strip()
+
+    if platform not in PLATFORMS:
+        flash(f"Unknown platform '{platform}'.", "error")
+        return redirect(url_for("social.new_general"))
+    if account_owner not in OWNERS:
+        flash(f"Unknown account owner '{account_owner}'.", "error")
+        return redirect(url_for("social.new_general"))
+
+    if not caption:
+        if not topic:
+            flash("Write a caption, or describe a topic to generate one from.", "error")
+            return redirect(url_for("social.new_general"))
+        try:
+            caption = generate_general_caption(topic, platform)
+        except Exception as e:
+            flash(f"Could not generate a caption: {e}", "error")
+            return redirect(url_for("social.new_general"))
+
+    post = SocialPost(
+        listing_id=None,
+        platform=platform,
+        account_owner=account_owner,
+        draft_caption=caption,
+        final_caption=caption,
+        photo_urls=[],
+        status="draft",
+        created_by=current_user.id,
+    )
+    db.session.add(post)
+    db.session.commit()
+
+    return redirect(url_for("social.edit", post_id=post.id))
+
+
+# ── Social caption templates ───────────────────────────────────────────────
+
+@bp.route("/templates")
+@login_required
+def templates():
+    saved = Template.query.filter_by(kind="social").order_by(Template.created_at.desc()).all()
+    return render_template("social_templates.html", templates=saved, platform_labels=PLATFORM_LABELS)
+
+
+@bp.route("/templates/save", methods=["POST"])
+@login_required
+def save_template():
+    name = request.form.get("name", "").strip()
+    platform = request.form.get("platform") or None
+    body = request.form.get("caption", "").strip()
+    post_id = request.form.get("post_id", type=int)
+
+    if not name or not body:
+        flash("A template needs a name and caption text.", "error")
+        return redirect(url_for("social.edit", post_id=post_id) if post_id else url_for("social.new_general"))
+
+    db.session.add(Template(kind="social", name=name, platform=platform, body=body, created_by=current_user.id))
+    db.session.commit()
+    flash(f"Saved post template '{name}'.")
+    return redirect(url_for("social.edit", post_id=post_id) if post_id else url_for("social.new_general"))
+
+
+@bp.route("/templates/<int:template_id>/delete", methods=["POST"])
+@login_required
+def delete_template(template_id):
+    t = db.get_or_404(Template, template_id)
+    name = t.name
+    db.session.delete(t)
+    db.session.commit()
+    flash(f"Deleted template '{name}'.")
+    return redirect(url_for("social.templates"))
+
+
+@bp.route("/<int:post_id>/delete", methods=["POST"])
+@login_required
+def delete_post(post_id):
+    post = db.get_or_404(SocialPost, post_id)
+    label = f"{PLATFORM_LABELS.get(post.platform, post.platform)} post"
+    db.session.delete(post)
+    db.session.commit()
+    flash(f"Deleted {label}.")
+    return redirect(url_for("social.list_posts"))
+
+
 @bp.route("/<int:post_id>/edit", methods=["GET", "POST"])
 @login_required
 def edit(post_id):
@@ -87,9 +197,74 @@ def edit(post_id):
         flash("Draft saved.")
         return redirect(url_for("social.edit", post_id=post.id))
 
+    # post.photo_urls is frozen at draft-creation time (see generate() above)
+    # — if the listing's cached photos were empty back then but have since
+    # been refreshed, fall back to the listing's current photos instead of
+    # silently showing nothing.
+    photo_urls = post.photo_urls or (post.listing.photo_urls if post.listing else None) or []
+    templates = Template.query.filter_by(kind="social").order_by(Template.name).all()
+
     return render_template(
-        "social_edit.html", post=post, platform_labels=PLATFORM_LABELS, owners=OWNERS,
+        "social_edit.html", post=post, photo_urls=photo_urls,
+        platform_labels=PLATFORM_LABELS, owners=OWNERS, templates=templates,
     )
+
+
+@bp.route("/<int:post_id>/photos/upload", methods=["POST"])
+@login_required
+def upload_photo(post_id):
+    post = db.get_or_404(SocialPost, post_id)
+    file = request.files.get("photo")
+    if not file or not file.filename:
+        flash("Choose a photo to upload.", "error")
+        return redirect(url_for("social.edit", post_id=post.id))
+
+    content_type = file.content_type or ""
+    if not content_type.startswith("image/"):
+        flash("Only image files can be uploaded.", "error")
+        return redirect(url_for("social.edit", post_id=post.id))
+
+    data = file.read(MAX_PHOTO_BYTES + 1)
+    if len(data) > MAX_PHOTO_BYTES:
+        flash("That photo is too large (8MB max).", "error")
+        return redirect(url_for("social.edit", post_id=post.id))
+
+    photo = UploadedPhoto(
+        token=secrets.token_urlsafe(24),
+        content_type=content_type,
+        data=data,
+        uploaded_by=current_user.id,
+    )
+    db.session.add(photo)
+    db.session.flush()
+
+    existing = post.photo_urls or (post.listing.photo_urls if post.listing else None) or []
+    post.photo_urls = [*existing, url_for("social.serve_photo", token=photo.token, _external=True)]
+    db.session.commit()
+
+    flash("Photo added.")
+    return redirect(url_for("social.edit", post_id=post.id))
+
+
+@bp.route("/<int:post_id>/photos/remove", methods=["POST"])
+@login_required
+def remove_photo(post_id):
+    post = db.get_or_404(SocialPost, post_id)
+    url = request.form.get("url")
+    current = post.photo_urls or (post.listing.photo_urls if post.listing else None) or []
+    post.photo_urls = [u for u in current if u != url]
+    db.session.commit()
+    flash("Photo removed.")
+    return redirect(url_for("social.edit", post_id=post.id))
+
+
+@bp.route("/photo/<token>")
+def serve_photo(token):
+    """Unauthenticated on purpose: Facebook/Instagram/LinkedIn fetch the
+    image server-side from the URL we hand them when publishing. `token` is
+    a random, unguessable id, not the row's primary key."""
+    photo = UploadedPhoto.query.filter_by(token=token).first_or_404()
+    return Response(photo.data, mimetype=photo.content_type)
 
 
 @bp.route("/<int:post_id>/approve", methods=["POST"])
@@ -124,7 +299,8 @@ def publish_now(post_id):
 def _publish(post: SocialPost, account_owner: str):
     """Shared by the manual publish_now button and
     scripts/publish_scheduled_posts.py's scheduled-post sweep."""
-    image_url = (post.photo_urls or [None])[0]
+    photo_urls = post.photo_urls or (post.listing.photo_urls if post.listing else None) or []
+    image_url = (photo_urls or [None])[0]
 
     if post.platform == "facebook_page":
         token = get_access_token("facebook_page", account_owner)

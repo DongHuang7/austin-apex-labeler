@@ -1,0 +1,59 @@
+{% extends "base.html" %}
+{% block title %}Manual Social Post — Austin Apex{% endblock %}
+{% block content %}
+<hgroup>
+  <h2>Post something manually</h2>
+  <p class="muted">
+    <a href="{{ url_for('social.list_posts') }}">← Back to social posts</a> ·
+    For content that isn't tied to a listing — festival posts, announcements, market updates.
+  </p>
+</hgroup>
+
+{% if templates %}
+<form>
+  <label>Start from a saved template
+    <select onchange="if (this.value) window.location = '{{ url_for('social.new_general') }}?template_id=' + this.value;">
+      <option value="">— none —</option>
+      {% for t in templates %}
+      <option value="{{ t.id }}">{{ t.name }}{% if t.platform %} ({{ platform_labels.get(t.platform, t.platform) }}){% endif %}</option>
+      {% endfor %}
+    </select>
+  </label>
+</form>
+{% endif %}
+
+<form method="post" action="{{ url_for('social.generate_general') }}">
+  <div class="grid">
+    <label>Post as
+      <select name="account_owner">
+        <option value="yifan">Yifan</option>
+        <option value="anthony">Anthony</option>
+      </select>
+    </label>
+    <label>Platform
+      <select name="platform">
+        {% for p in platforms %}
+        <option value="{{ p }}">{{ platform_labels[p] }}</option>
+        {% endfor %}
+      </select>
+    </label>
+  </div>
+
+  <label>Caption (write your own, or leave blank and describe a topic below to have Claude draft one)
+    <textarea name="caption" rows="6">{{ caption }}</textarea>
+  </label>
+
+  <label>Topic to generate from (used only if caption above is blank)
+    <input type="text" name="topic" placeholder="e.g. Happy 4th of July from Austin Apex">
+  </label>
+
+  <button type="submit">Create draft</button>
+
+  <hr>
+
+  <label>Save this caption as a reusable template
+    <input type="text" name="name" placeholder="e.g. 4th of July — Facebook">
+  </label>
+  <button type="submit" formaction="{{ url_for('social.save_template') }}" formnovalidate class="secondary outline">Save as template</button>
+</form>
+{% endblock %}

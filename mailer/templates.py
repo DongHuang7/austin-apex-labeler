@@ -94,6 +94,139 @@ def _photo_grid_html(photo_urls: list) -> str:
     return f'<table width="100%" cellpadding="0" cellspacing="0" style="margin:24px 0;">{rows}</table>'
 
 
+def build_general_email(
+    subject: str,
+    body_html: str,
+    photo_urls: list = None,
+    agent_email: str = None,
+    property_url: str = None,
+) -> tuple:
+    """
+    Build a listing-agnostic email (festival post, announcement, etc.) using
+    the same branded header/footer/agent-signature shell as
+    build_listing_email, but with a free-text subject/body instead of
+    listing fields. Returns (subject, html_body).
+    """
+    agent = _get_agent("", agent_email)
+    phone = agent["phone"]
+
+    hero_img = ""
+    grid_html = ""
+    if photo_urls:
+        hero_img = f'<img src="{photo_urls[0]}" width="600" style="width:100%;display:block;border-radius:6px;margin-bottom:32px;" />'
+        grid_html = _photo_grid_html(photo_urls)
+
+    property_button = ""
+    if property_url:
+        property_button = f"""
+    <table width="100%" cellpadding="0" cellspacing="0" style="margin:24px 0 40px;">
+      <tr>
+        <td align="center">
+          <a href="{property_url}" style="display:inline-block;background:#264653;color:#ffffff;font-family:Arial,sans-serif;font-size:13px;letter-spacing:2px;text-decoration:none;padding:14px 36px;border-radius:2px;">
+            LEARN MORE
+          </a>
+        </td>
+      </tr>
+    </table>"""
+
+    _social_cells = ""
+    if agent.get("linkedin"):
+        _social_cells += f'<td style="padding-right:13px;"><a href="{agent["linkedin"]}" style="display:block;line-height:0;"><img src="{LINKEDIN_ICON_B64}" width="22" height="22" style="display:block;width:22px;height:22px;" /></a></td>'
+    if agent.get("instagram"):
+        _social_cells += f'<td><a href="{agent["instagram"]}" style="display:block;line-height:0;"><img src="{INSTAGRAM_ICON_B64}" width="22" height="22" style="display:block;width:22px;height:22px;" /></a></td>'
+    social_icons = f'<table cellpadding="0" cellspacing="0" style="margin-top:14px;"><tr>{_social_cells}</tr></table>' if _social_cells else ""
+
+    html = f"""<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>{subject}</title>
+</head>
+<body style="margin:0;padding:0;background:#f9f9f9;font-family:Georgia,serif;">
+<table width="100%" cellpadding="0" cellspacing="0" bgcolor="#f9f9f9">
+  <tr>
+    <td align="center" style="padding:32px 16px;">
+      <table width="600" cellpadding="0" cellspacing="0" style="max-width:600px;background:#ffffff;border-radius:8px;overflow:hidden;">
+
+        <!-- HEADER: Logo left, Brokerage Name centered -->
+        <tr>
+          <td style="background:#264653;padding:24px 32px;">
+            <table width="100%" cellpadding="0" cellspacing="0">
+              <tr>
+                <td width="60" style="vertical-align:middle;">
+                  <img src="{LOGO_B64}" width="60" height="54" style="display:block;width:60px;height:54px;" />
+                </td>
+                <td style="vertical-align:middle;text-align:center;">
+                  <p style="margin:0;font-family:Arial,sans-serif;font-size:18px;font-weight:bold;letter-spacing:2px;color:#ffffff;">
+                    AUSTIN APEX REAL ESTATE
+                  </p>
+                </td>
+                <td width="60"></td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+
+        <tr><td style="padding:32px 40px;">
+
+          <!-- HERO IMAGE -->
+          {hero_img}
+
+          <!-- BODY -->
+          <div style="font-family:Georgia,serif;font-size:15px;line-height:1.8;color:#333;margin:0 0 24px;">
+            {body_html}
+          </div>
+
+          <!-- LEARN MORE BUTTON -->
+          {property_button}
+
+          <!-- PHOTO GRID -->
+          {grid_html}
+
+          <!-- REACH OUT -->
+          <p style="text-align:center;font-family:Arial,sans-serif;font-size:14px;color:#555;margin:24px 0 40px;">
+            <a href="mailto:{agent['email']}" style="color:#1a1a1a;text-decoration:none;border-bottom:1px solid #1a1a1a;padding-bottom:2px;">
+              Reach out for more info
+            </a>
+          </p>
+
+          <hr style="border:none;border-top:1px solid #e0e0e0;margin:0 0 28px;" />
+
+          <!-- AGENT SIGNATURE -->
+          <table cellpadding="0" cellspacing="0" style="margin-bottom:32px;">
+            <tr>
+              <td style="padding-right:24px;vertical-align:top;">
+                <img src="{agent['photo']}" width="110" height="140"
+                     style="display:block;object-fit:cover;object-position:center center;width:110px;height:140px;" />
+              </td>
+              <td style="vertical-align:top;">
+                <p style="margin:0;font-family:Georgia,serif;font-size:20px;color:#1a1a1a;">{agent['name']}</p>
+                <p style="margin:4px 0 0;font-family:Arial,sans-serif;font-size:12px;color:#555;">{agent['title']}</p>
+                <p style="margin:2px 0 0;font-family:Arial,sans-serif;font-size:12px;color:#555;">{agent['brokerage']}</p>
+                <p style="margin:2px 0 0;font-family:Arial,sans-serif;font-size:12px;color:#555;">M: {phone}</p>
+                <p style="margin:2px 0 0;font-family:Arial,sans-serif;font-size:12px;color:#555;">{agent['email']}</p>
+                {social_icons}
+              </td>
+            </tr>
+          </table>
+
+          <!-- DISCLAIMER -->
+          <p style="font-family:Arial,sans-serif;font-size:10px;color:#aaa;line-height:1.6;margin:0 0 24px;">
+            {DISCLAIMER}
+          </p>
+
+        </td></tr>
+      </table>
+    </td>
+  </tr>
+</table>
+</body>
+</html>"""
+
+    return subject, html
+
+
 def build_listing_email(
     listing: dict,
     photo_urls: list = None,

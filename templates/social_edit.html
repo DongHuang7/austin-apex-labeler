@@ -3,7 +3,10 @@
 {% block content %}
 <hgroup>
   <h2>{{ platform_labels.get(post.platform, post.platform) }} post — {{ post.account_owner|title }}</h2>
-  <p class="muted"><a href="{{ url_for('social.list_posts') }}">← Back to social posts</a></p>
+  <p class="muted">
+    <a href="{{ url_for('social.list_posts') }}">← Back to social posts</a>
+    {% if post.listing %} · {{ post.listing.address }}, {{ post.listing.city }}{% else %} · General post (no listing){% endif %}
+  </p>
 </hgroup>
 
 <form method="post" action="{{ url_for('social.edit', post_id=post.id) }}">
@@ -11,16 +14,18 @@
     <textarea name="caption" rows="8">{{ post.final_caption or post.draft_caption or '' }}</textarea>
   </label>
 
-  {% if post.photo_urls %}
   <label>Photos to include</label>
+  {% if photo_urls %}
   <div class="grid">
-    {% for url in post.photo_urls[:6] %}
+    {% for url in photo_urls[:6] %}
     <label>
       <input type="checkbox" name="photo_url" value="{{ url }}" checked>
       <img src="{{ url }}" style="width:100%;border-radius:6px;">
     </label>
     {% endfor %}
   </div>
+  {% else %}
+  <p class="muted">No photos yet — upload one below.</p>
   {% endif %}
 
   <label>Schedule for later (optional — leave blank to keep as a draft)
@@ -29,6 +34,35 @@
   </label>
 
   <button type="submit">Save draft</button>
+
+  <hr>
+
+  <label>Save this caption as a reusable template
+    <input type="text" name="name" placeholder="e.g. 4th of July — Facebook">
+  </label>
+  <button type="submit" formaction="{{ url_for('social.save_template') }}" formnovalidate class="secondary outline">Save as template</button>
+  <input type="hidden" name="post_id" value="{{ post.id }}">
+  <input type="hidden" name="platform" value="{{ post.platform }}">
+</form>
+
+{% if photo_urls %}
+<form method="post" action="{{ url_for('social.remove_photo', post_id=post.id) }}" style="margin-top:0.5rem;">
+  <label>Remove a photo
+    <select name="url">
+      {% for url in photo_urls %}
+      <option value="{{ url }}">{{ url }}</option>
+      {% endfor %}
+    </select>
+  </label>
+  <button type="submit" class="secondary outline">Remove</button>
+</form>
+{% endif %}
+
+<form method="post" action="{{ url_for('social.upload_photo', post_id=post.id) }}" enctype="multipart/form-data" style="margin-top:0.5rem;">
+  <label>Add a photo manually
+    <input type="file" name="photo" accept="image/*">
+  </label>
+  <button type="submit" class="secondary outline">Upload photo</button>
 </form>
 
 <hr>
@@ -48,4 +82,11 @@
   </form>
 </div>
 <p class="muted">Publishing requires that account to be connected first — see <a href="{{ url_for('social.accounts') }}">Manage connected accounts</a>.</p>
+
+<hr>
+
+<form method="post" action="{{ url_for('social.delete_post', post_id=post.id) }}"
+      onsubmit="return confirm('Delete this post? This cannot be undone.');">
+  <button type="submit" class="secondary outline">Delete this post</button>
+</form>
 {% endblock %}

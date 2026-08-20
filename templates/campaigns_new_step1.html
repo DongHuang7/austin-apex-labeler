@@ -3,7 +3,11 @@
 {% block content %}
 <hgroup>
   <h2>Pick a listing</h2>
-  <p class="muted">Choose which listing to send an email about.</p>
+  <p class="muted">
+    Choose which listing to send an email about, or
+    <a href="{{ url_for('campaigns.new_general') }}">send a manual email</a>
+    (festival post, announcement — no listing needed).
+  </p>
 </hgroup>
 
 <form method="post" action="{{ url_for('campaigns.refresh_listings') }}" style="margin-bottom:1rem;">

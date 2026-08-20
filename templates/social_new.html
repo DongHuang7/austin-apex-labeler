@@ -3,8 +3,25 @@
 {% block content %}
 <hgroup>
   <h2>{{ listing.address }}, {{ listing.city }}</h2>
-  <p class="muted">Pick who's posting and which platform — Claude will draft a caption you can edit before posting.</p>
+  <p class="muted">
+    <a href="{{ url_for('campaigns.new_step1') }}">← Back to listings</a> ·
+    Pick who's posting and which platform — Claude will draft a caption you can edit before posting.
+  </p>
 </hgroup>
+
+{% if listing.photo_urls %}
+<div class="grid">
+  {% for url in listing.photo_urls[:6] %}
+  <img src="{{ url }}" style="width:100%;border-radius:6px;">
+  {% endfor %}
+</div>
+{% else %}
+<p class="muted">
+  No MLS photos cached for this listing yet —
+  <a href="{{ url_for('campaigns.new_step1') }}">refresh listings from MLS</a>,
+  or draft the post and add photos manually on the next screen.
+</p>
+{% endif %}
 
 <form>
   <label>Post as

@@ -6,6 +6,10 @@
   <p class="muted">
     <a href="{{ url_for('campaigns.new_step1') }}">Pick a listing to draft a post →</a>
     &nbsp;|&nbsp;
+    <a href="{{ url_for('social.new_general') }}">Post something manually (festival post, announcement, no listing) →</a>
+    &nbsp;|&nbsp;
+    <a href="{{ url_for('social.templates') }}">Saved templates →</a>
+    &nbsp;|&nbsp;
     <a href="{{ url_for('social.accounts') }}">Manage connected accounts →</a>
   </p>
 </hgroup>
@@ -28,7 +32,13 @@
         {% else %}<span class="muted">Draft</span>
         {% endif %}
       </td>
-      <td><a href="{{ url_for('social.edit', post_id=p.id) }}">Open</a></td>
+      <td>
+        <a href="{{ url_for('social.edit', post_id=p.id) }}">Open</a>
+        <form method="post" action="{{ url_for('social.delete_post', post_id=p.id) }}" style="display:inline;"
+              onsubmit="return confirm('Delete this post? This cannot be undone.');">
+          <button type="submit" class="secondary outline" style="padding:0.1rem 0.6rem;">Delete</button>
+        </form>
+      </td>
     </tr>
     {% endfor %}
   </tbody>

@@ -305,8 +305,20 @@ def get_or_create_contact_group(service, label: str) -> str:
     return new_group["resourceName"]
 
 
+ALL_LABELS = ["Buyer", "Seller", "Broker", "Other"]
+
+
 def fetch_contacts_by_group(label: str, account: str = "default"):
-    """Fetch all contacts that belong to a specific label/group."""
+    """Fetch all contacts that belong to a specific label/group. label="All"
+    is not a real Google Contacts group — it's the union of ALL_LABELS,
+    deduped by email."""
+    if label == "All":
+        by_email = {}
+        for sub_label in ALL_LABELS:
+            for contact in fetch_contacts_by_group(sub_label, account=account):
+                by_email.setdefault(contact["email"].lower(), contact)
+        return list(by_email.values())
+
     creds = get_credentials(account)
     service = build("people", "v1", credentials=creds)
 

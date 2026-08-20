@@ -4,6 +4,7 @@
 <hgroup>
   <h2>{{ campaign.subject }}</h2>
   <p class="muted">
+    <a href="{{ url_for('campaigns.list_campaigns') }}">← Back to campaigns</a> ·
     {{ campaign.created_at.strftime('%b %d, %Y %I:%M %p') if campaign.created_at else '' }}
     {% if campaign.dry_run %} — dry run, nothing was actually sent{% endif %}
   </p>
@@ -28,4 +29,11 @@
     {% endfor %}
   </tbody>
 </table>
+
+<hr>
+
+<form method="post" action="{{ url_for('campaigns.delete_campaign', campaign_id=campaign.id) }}"
+      onsubmit="return confirm('Delete this campaign and its send history? This cannot be undone.');">
+  <button type="submit" class="secondary outline">Delete this campaign</button>
+</form>
 {% endblock %}

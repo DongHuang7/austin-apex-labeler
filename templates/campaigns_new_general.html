@@ -1,0 +1,70 @@
+{% extends "base.html" %}
+{% block title %}Manual Email — Austin Apex{% endblock %}
+{% block content %}
+<hgroup>
+  <h2>Send a manual email</h2>
+  <p class="muted">
+    <a href="{{ url_for('campaigns.list_campaigns') }}">← Back to campaigns</a> ·
+    For content that isn't tied to a listing — festival greetings, announcements, market updates.
+  </p>
+</hgroup>
+
+{% if templates %}
+<form>
+  <label>Start from a saved template
+    <select onchange="if (this.value) window.location = '{{ url_for('campaigns.new_general') }}?template_id=' + this.value;">
+      <option value="">— none —</option>
+      {% for t in templates %}
+      <option value="{{ t.id }}">{{ t.name }}</option>
+      {% endfor %}
+    </select>
+  </label>
+</form>
+{% endif %}
+
+<form method="post" action="{{ url_for('campaigns.generate_general') }}">
+  <label>Generate with AI — describe a topic and Claude will draft a subject + body below
+    <input type="text" name="topic" placeholder="e.g. Happy 4th of July from Austin Apex">
+  </label>
+  <button type="submit" class="secondary outline">Generate with AI</button>
+</form>
+
+<form method="post" action="{{ url_for('campaigns.send_general') }}">
+  <label>Subject
+    <input type="text" name="subject" value="{{ subject }}" placeholder="e.g. Happy 4th of July from Austin Apex!">
+  </label>
+
+  <label>Body (one paragraph per line)
+    <textarea name="body" rows="8">{{ body }}</textarea>
+  </label>
+
+  <div class="grid">
+    <label>Recipients
+      <select name="recipient_group">
+        {% for g in recipient_groups %}
+        <option value="{{ g }}" {% if g == recipient_group %}selected{% endif %}>{{ g }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    <label>From account
+      <select name="account">
+        {% for a in accounts %}
+        <option value="{{ a }}" {% if a == selected_account %}selected{% endif %}>{{ a|title }}</option>
+        {% endfor %}
+      </select>
+    </label>
+  </div>
+
+  <div style="display:flex; gap:1rem;">
+    <button type="submit" name="dry_run" value="1" class="secondary">Preview send (dry run)</button>
+    <button type="submit" name="dry_run" value="0">Send now</button>
+  </div>
+
+  <hr>
+
+  <label>Save this subject/body as a reusable template
+    <input type="text" name="name" placeholder="e.g. 4th of July email">
+  </label>
+  <button type="submit" formaction="{{ url_for('campaigns.save_template') }}" formnovalidate class="secondary outline">Save as email template</button>
+</form>
+{% endblock %}

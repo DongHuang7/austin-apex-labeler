@@ -1,0 +1,34 @@
+{% extends "base.html" %}
+{% block title %}Saved Email Templates — Austin Apex{% endblock %}
+{% block content %}
+<hgroup>
+  <h2>Saved email templates</h2>
+  <p class="muted">
+    <a href="{{ url_for('campaigns.list_campaigns') }}">← Back to campaigns</a> ·
+    <a href="{{ url_for('campaigns.new_general') }}">Start a manual email →</a>
+  </p>
+</hgroup>
+
+{% if templates %}
+<table class="review">
+  <thead><tr><th>Name</th><th>Subject</th><th>Body</th><th></th></tr></thead>
+  <tbody>
+    {% for t in templates %}
+    <tr>
+      <td>{{ t.name }}</td>
+      <td>{{ t.subject }}</td>
+      <td>{{ t.body[:80] }}{% if t.body|length > 80 %}…{% endif %}</td>
+      <td>
+        <a href="{{ url_for('campaigns.new_general', template_id=t.id) }}">Use</a>
+        <form method="post" action="{{ url_for('campaigns.delete_template', template_id=t.id) }}" style="display:inline;">
+          <button type="submit" class="secondary outline" style="padding:0.1rem 0.6rem;">Delete</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="muted">No saved templates yet — save one from the manual email editor.</p>
+{% endif %}
+{% endblock %}

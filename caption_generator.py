@@ -63,3 +63,70 @@ def generate_caption(listing: dict, platform: str) -> str:
         messages=[{"role": "user", "content": prompt}],
     )
     return response.content[0].text.strip()
+
+
+EMAIL_PROMPT_TEMPLATE = """You are a real estate marketing assistant writing a marketing email \
+for a local real estate brokerage. This email is NOT about a specific listing \
+— it's a general email such as a holiday/festival greeting, a market update, \
+or a community announcement.
+
+What the email should be about: {topic}
+
+Respond in EXACTLY this format, nothing else:
+
+Subject: <the subject line>
+
+<the email body, as plain text paragraphs separated by blank lines — no \
+subject line repeated, no signature, no preamble>"""
+
+
+def generate_general_email(topic: str) -> tuple:
+    """Drafts a (subject, body) pair for a non-listing marketing email
+    (festival post, announcement, etc.) — the campaigns.py equivalent of
+    generate_general_caption() above. Body is plain text paragraphs, matching
+    what campaigns_new_general.html's body textarea expects."""
+    prompt = EMAIL_PROMPT_TEMPLATE.format(topic=topic)
+
+    response = client.messages.create(
+        model=MODEL_CAPTION,
+        max_tokens=1024,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    text = response.content[0].text.strip()
+
+    subject = ""
+    body = text
+    if text.lower().startswith("subject:"):
+        first_line, _, rest = text.partition("\n")
+        subject = first_line.split(":", 1)[1].strip()
+        body = rest.strip()
+
+    return subject, body
+
+
+GENERAL_PROMPT_TEMPLATE = """You are a real estate marketing assistant writing a social media caption \
+for a local real estate brokerage. This post is NOT about a specific listing \
+— it's a general post such as a holiday/festival greeting, a market update, \
+or a community announcement.
+
+Platform: {platform}
+Style guidance: {guidance}
+
+What the post should be about: {topic}
+
+Write ONLY the caption text, nothing else — no preamble, no quotes around it, no explanation."""
+
+
+def generate_general_caption(topic: str, platform: str) -> str:
+    """Same platform-specific style guidance as generate_caption(), but for
+    posts with no listing behind them (festival posts, announcements, etc.)."""
+    guidance = PLATFORM_GUIDANCE.get(platform, PLATFORM_GUIDANCE["facebook_page"])
+
+    prompt = GENERAL_PROMPT_TEMPLATE.format(platform=platform, guidance=guidance, topic=topic)
+
+    response = client.messages.create(
+        model=MODEL_CAPTION,
+        max_tokens=1024,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    return response.content[0].text.strip()

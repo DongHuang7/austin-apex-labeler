@@ -96,7 +96,9 @@ class Campaign(db.Model):
     __tablename__ = "campaigns"
 
     id = db.Column(db.Integer, primary_key=True)
-    listing_id = db.Column(db.Integer, db.ForeignKey("listings.id"), nullable=False)
+    # Nullable: a "general" campaign (festival post, announcement, etc.) has
+    # no MLS listing behind it — see routes/campaigns.py's new_general().
+    listing_id = db.Column(db.Integer, db.ForeignKey("listings.id"), nullable=True)
     email_type = db.Column(db.String)
     subject = db.Column(db.String)
     html_body_snapshot = db.Column(db.Text)
@@ -153,7 +155,9 @@ class SocialPost(db.Model):
     __tablename__ = "social_posts"
 
     id = db.Column(db.Integer, primary_key=True)
-    listing_id = db.Column(db.Integer, db.ForeignKey("listings.id"), nullable=False)
+    # Nullable: a "general" post (festival post, announcement, etc.) has no
+    # MLS listing behind it — see routes/social.py's new_general().
+    listing_id = db.Column(db.Integer, db.ForeignKey("listings.id"), nullable=True)
     platform = db.Column(db.String, nullable=False)
     account_owner = db.Column(db.String, nullable=False)  # "yifan", "anthony" — which agent's connected account to publish through
     social_account_id = db.Column(db.Integer, db.ForeignKey("social_accounts.id"))
@@ -173,6 +177,39 @@ class SocialPost(db.Model):
 
     listing = db.relationship("Listing")
     social_account = db.relationship("SocialAccount")
+
+
+class UploadedPhoto(db.Model):
+    """A manually-uploaded photo (not from MLS Media), stored in Postgres
+    since Heroku dynos have an ephemeral filesystem and this app has no
+    S3/Cloudinary set up. Served unauthenticated at GET /social/photo/<token>
+    since Facebook/Instagram/LinkedIn fetch the image server-side — token is
+    a random, unguessable id so the public route can't be enumerated."""
+    __tablename__ = "uploaded_photos"
+
+    id = db.Column(db.Integer, primary_key=True)
+    token = db.Column(db.String, unique=True, nullable=False)
+    content_type = db.Column(db.String, nullable=False)
+    data = db.Column(db.LargeBinary, nullable=False)
+    uploaded_by = db.Column(db.Integer, db.ForeignKey("users.id"))
+    created_at = db.Column(db.DateTime(timezone=True), default=_utcnow)
+
+
+class Template(db.Model):
+    """A named, reusable snippet saved from a general (non-listing) social
+    post or email campaign, so festival/announcement content doesn't have to
+    be retyped every time. Not used by the MLS-driven flows, which already
+    generate content dynamically per listing."""
+    __tablename__ = "templates"
+
+    id = db.Column(db.Integer, primary_key=True)
+    kind = db.Column(db.String, nullable=False)  # "social" or "email"
+    name = db.Column(db.String, nullable=False)
+    platform = db.Column(db.String)  # social only
+    subject = db.Column(db.String)  # email only
+    body = db.Column(db.Text, nullable=False)
+    created_by = db.Column(db.Integer, db.ForeignKey("users.id"))
+    created_at = db.Column(db.DateTime(timezone=True), default=_utcnow)
 
 
 class Selection(db.Model):
