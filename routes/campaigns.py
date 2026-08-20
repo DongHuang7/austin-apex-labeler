@@ -7,6 +7,7 @@ from mailer.sender import send_email
 from mailer.templates import EMAIL_TYPES, build_general_email, build_listing_email
 from mls.fetcher import fetch_active_listings, get_email_type, get_photo_urls, get_property_url
 from models import Campaign, CampaignSend, Listing, Template, db
+from photo_cache import ensure_cached
 
 bp = Blueprint("campaigns", __name__, url_prefix="/campaigns")
 
@@ -71,7 +72,7 @@ def new_step2(listing_id):
 
     subject, html = build_listing_email(
         listing.raw_json,
-        photo_urls=listing.photo_urls,
+        photo_urls=ensure_cached(listing),
         email_type=email_type,
         agent_email=agent_email,
         property_url=get_property_url(listing.raw_json),
@@ -104,7 +105,7 @@ def send(listing_id):
 
     subject, html = build_listing_email(
         listing.raw_json,
-        photo_urls=listing.photo_urls,
+        photo_urls=ensure_cached(listing),
         email_type=email_type,
         agent_email=agent_email,
         property_url=get_property_url(listing.raw_json),

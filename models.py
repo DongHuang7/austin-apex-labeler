@@ -180,17 +180,22 @@ class SocialPost(db.Model):
 
 
 class UploadedPhoto(db.Model):
-    """A manually-uploaded photo (not from MLS Media), stored in Postgres
-    since Heroku dynos have an ephemeral filesystem and this app has no
-    S3/Cloudinary set up. Served unauthenticated at GET /social/photo/<token>
-    since Facebook/Instagram/LinkedIn fetch the image server-side — token is
-    a random, unguessable id so the public route can't be enumerated."""
+    """A photo stored in Postgres, since Heroku dynos have an ephemeral
+    filesystem and this app has no S3/Cloudinary set up. Two sources:
+    manually uploaded by an agent (source_url is null), or a cached copy of
+    an MLS Media photo (source_url is the original mlsgrid.com URL — see
+    photo_cache.py, which downloads MLS photos once instead of hotlinking
+    them directly, since those URLs proved unreliable to hotlink in
+    practice). Served unauthenticated at GET /social/photo/<token> since
+    Facebook/Instagram/LinkedIn fetch the image server-side — token is a
+    random, unguessable id so the public route can't be enumerated."""
     __tablename__ = "uploaded_photos"
 
     id = db.Column(db.Integer, primary_key=True)
     token = db.Column(db.String, unique=True, nullable=False)
     content_type = db.Column(db.String, nullable=False)
     data = db.Column(db.LargeBinary, nullable=False)
+    source_url = db.Column(db.String, index=True)
     uploaded_by = db.Column(db.Integer, db.ForeignKey("users.id"))
     created_at = db.Column(db.DateTime(timezone=True), default=_utcnow)
 

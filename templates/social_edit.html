@@ -18,10 +18,15 @@
   {% if photo_urls %}
   <div class="grid">
     {% for url in photo_urls[:6] %}
-    <label>
-      <input type="checkbox" name="photo_url" value="{{ url }}" checked>
-      <img src="{{ url }}" style="width:100%;border-radius:6px;">
-    </label>
+    <div>
+      <label>
+        <input type="checkbox" name="photo_url" value="{{ url }}" checked>
+        <img src="{{ url }}" style="width:100%;border-radius:6px;">
+      </label>
+      <button type="submit" name="url" value="{{ url }}"
+              formaction="{{ url_for('social.remove_photo', post_id=post.id) }}" formnovalidate
+              class="secondary outline" style="padding:0.1rem 0.6rem; font-size:0.8rem; width:100%;">Remove</button>
+    </div>
     {% endfor %}
   </div>
   {% else %}
@@ -44,19 +49,6 @@
   <input type="hidden" name="post_id" value="{{ post.id }}">
   <input type="hidden" name="platform" value="{{ post.platform }}">
 </form>
-
-{% if photo_urls %}
-<form method="post" action="{{ url_for('social.remove_photo', post_id=post.id) }}" style="margin-top:0.5rem;">
-  <label>Remove a photo
-    <select name="url">
-      {% for url in photo_urls %}
-      <option value="{{ url }}">{{ url }}</option>
-      {% endfor %}
-    </select>
-  </label>
-  <button type="submit" class="secondary outline">Remove</button>
-</form>
-{% endif %}
 
 <form method="post" action="{{ url_for('social.upload_photo', post_id=post.id) }}" enctype="multipart/form-data" style="margin-top:0.5rem;">
   <label>Add a photo manually

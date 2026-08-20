@@ -7,6 +7,7 @@ from flask_login import current_user, login_required
 
 from caption_generator import generate_caption, generate_general_caption
 from models import Listing, SocialAccount, SocialPost, Template, UploadedPhoto, db
+from photo_cache import ensure_cached, ensure_post_cached
 from social import linkedin_client, meta_client
 from social.token_store import get_access_token, save_account_token
 
@@ -34,6 +35,7 @@ def list_posts():
 @login_required
 def new(listing_id):
     listing = Listing.query.filter_by(listing_id=listing_id).first_or_404()
+    ensure_cached(listing)
     return render_template(
         "social_new.html", listing=listing, platforms=PLATFORMS, platform_labels=PLATFORM_LABELS,
     )
@@ -57,6 +59,8 @@ def generate(listing_id):
     except Exception as e:
         flash(f"Could not generate a caption: {e}", "error")
         return redirect(url_for("social.new", listing_id=listing_id))
+
+    ensure_cached(listing)
 
     post = SocialPost(
         listing_id=listing.id,
@@ -197,11 +201,7 @@ def edit(post_id):
         flash("Draft saved.")
         return redirect(url_for("social.edit", post_id=post.id))
 
-    # post.photo_urls is frozen at draft-creation time (see generate() above)
-    # — if the listing's cached photos were empty back then but have since
-    # been refreshed, fall back to the listing's current photos instead of
-    # silently showing nothing.
-    photo_urls = post.photo_urls or (post.listing.photo_urls if post.listing else None) or []
+    photo_urls = ensure_post_cached(post)
     templates = Template.query.filter_by(kind="social").order_by(Template.name).all()
 
     return render_template(
@@ -238,7 +238,7 @@ def upload_photo(post_id):
     db.session.add(photo)
     db.session.flush()
 
-    existing = post.photo_urls or (post.listing.photo_urls if post.listing else None) or []
+    existing = ensure_post_cached(post)
     post.photo_urls = [*existing, url_for("social.serve_photo", token=photo.token, _external=True)]
     db.session.commit()
 
@@ -251,7 +251,7 @@ def upload_photo(post_id):
 def remove_photo(post_id):
     post = db.get_or_404(SocialPost, post_id)
     url = request.form.get("url")
-    current = post.photo_urls or (post.listing.photo_urls if post.listing else None) or []
+    current = ensure_post_cached(post)
     post.photo_urls = [u for u in current if u != url]
     db.session.commit()
     flash("Photo removed.")
@@ -299,7 +299,7 @@ def publish_now(post_id):
 def _publish(post: SocialPost, account_owner: str):
     """Shared by the manual publish_now button and
     scripts/publish_scheduled_posts.py's scheduled-post sweep."""
-    photo_urls = post.photo_urls or (post.listing.photo_urls if post.listing else None) or []
+    photo_urls = ensure_post_cached(post)
     image_url = (photo_urls or [None])[0]
 
     if post.platform == "facebook_page":
