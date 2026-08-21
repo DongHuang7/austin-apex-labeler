@@ -214,36 +214,49 @@ def edit(post_id):
 @login_required
 def upload_photo(post_id):
     post = db.get_or_404(SocialPost, post_id)
-    file = request.files.get("photo")
-    if not file or not file.filename:
-        flash("Choose a photo to upload.", "error")
+    files = [f for f in request.files.getlist("photo") if f and f.filename]
+    if not files:
+        flash("Choose one or more photos to upload.", "error")
         return redirect(url_for("social.edit", post_id=post.id))
 
-    content_type = file.content_type or ""
-    if not content_type.startswith("image/"):
-        flash("Only image files can be uploaded.", "error")
-        return redirect(url_for("social.edit", post_id=post.id))
+    new_urls = []
+    skipped = []
+    for file in files:
+        content_type = file.content_type or ""
+        if not content_type.startswith("image/"):
+            skipped.append(f"{file.filename} (not an image)")
+            continue
 
-    data = file.read(MAX_PHOTO_BYTES + 1)
-    if len(data) > MAX_PHOTO_BYTES:
-        flash("That photo is too large (8MB max).", "error")
-        return redirect(url_for("social.edit", post_id=post.id))
+        data = file.read(MAX_PHOTO_BYTES + 1)
+        if len(data) > MAX_PHOTO_BYTES:
+            skipped.append(f"{file.filename} (over 8MB)")
+            continue
 
-    photo = UploadedPhoto(
-        token=secrets.token_urlsafe(24),
-        content_type=content_type,
-        data=data,
-        uploaded_by=current_user.id,
-        social_post_id=post.id,
-    )
-    db.session.add(photo)
-    db.session.flush()
+        photo = UploadedPhoto(
+            token=secrets.token_urlsafe(24),
+            content_type=content_type,
+            data=data,
+            uploaded_by=current_user.id,
+            social_post_id=post.id,
+        )
+        db.session.add(photo)
+        db.session.flush()
+        new_urls.append(url_for("social.serve_photo", token=photo.token, _external=True))
 
-    existing = ensure_post_cached(post)
-    post.photo_urls = [*existing, url_for("social.serve_photo", token=photo.token, _external=True)]
-    db.session.commit()
+    if new_urls:
+        existing = ensure_post_cached(post)
+        post.photo_urls = [*existing, *new_urls]
+        db.session.commit()
+    else:
+        db.session.rollback()
 
-    flash("Photo added.")
+    if new_urls and not skipped:
+        flash(f"Added {len(new_urls)} photo(s).")
+    elif new_urls and skipped:
+        flash(f"Added {len(new_urls)} photo(s). Skipped: {', '.join(skipped)}", "error")
+    else:
+        flash(f"Could not upload: {', '.join(skipped)}", "error")
+
     return redirect(url_for("social.edit", post_id=post.id))
 
 

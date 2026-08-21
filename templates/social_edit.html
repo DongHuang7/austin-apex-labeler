@@ -53,10 +53,10 @@
 </form>
 
 <form method="post" action="{{ url_for('social.upload_photo', post_id=post.id) }}" enctype="multipart/form-data" style="margin-top:0.5rem;">
-  <label>Add a photo manually
-    <input type="file" name="photo" accept="image/*">
+  <label>Add photos manually (select multiple to upload them all at once)
+    <input type="file" name="photo" accept="image/*" multiple>
   </label>
-  <button type="submit" class="secondary outline">Upload photo</button>
+  <button type="submit" class="secondary outline">Upload photo(s)</button>
 </form>
 
 <hr>
