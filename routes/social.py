@@ -193,7 +193,6 @@ def edit(post_id):
 
     if request.method == "POST":
         post.final_caption = request.form.get("caption", post.final_caption)
-        post.photo_urls = request.form.getlist("photo_url") or post.photo_urls
         scheduled_time = request.form.get("scheduled_time")
         if scheduled_time:
             post.scheduled_time = datetime.fromisoformat(scheduled_time).replace(tzinfo=timezone.utc)
