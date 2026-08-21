@@ -262,13 +262,17 @@ def upload_photo(post_id):
 
 @bp.route("/<int:post_id>/photos/remove", methods=["POST"])
 @login_required
-def remove_photo(post_id):
+def remove_photos(post_id):
     post = db.get_or_404(SocialPost, post_id)
-    url = request.form.get("url")
+    to_remove = set(request.form.getlist("remove_url"))
+    if not to_remove:
+        flash("Select at least one photo to remove.", "error")
+        return redirect(url_for("social.edit", post_id=post.id))
+
     current = ensure_post_cached(post)
-    post.photo_urls = [u for u in current if u != url]
+    post.photo_urls = [u for u in current if u not in to_remove]
     db.session.commit()
-    flash("Photo removed.")
+    flash(f"Removed {len(to_remove)} photo(s).")
     return redirect(url_for("social.edit", post_id=post.id))
 
 

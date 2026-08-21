@@ -23,12 +23,15 @@
         <input type="checkbox" name="photo_url" value="{{ url }}" checked>
         <img src="{{ url }}" style="width:100%;border-radius:6px;">
       </label>
-      <button type="submit" name="url" value="{{ url }}"
-              formaction="{{ url_for('social.remove_photo', post_id=post.id) }}" formnovalidate
-              class="secondary outline" style="padding:0.1rem 0.6rem; font-size:0.8rem; width:100%;">Remove</button>
+      <label style="display:block; text-align:center; font-size:0.8rem;">
+        <input type="checkbox" name="remove_url" value="{{ url }}"> Select to remove
+      </label>
     </div>
     {% endfor %}
   </div>
+  <button type="submit" formaction="{{ url_for('social.remove_photos', post_id=post.id) }}" formnovalidate
+          class="secondary outline"
+          onclick="return confirm('Remove the selected photo(s)?');">Remove selected</button>
   {% else %}
   <p class="muted">No photos yet — upload one below.</p>
   {% endif %}
@@ -52,12 +55,71 @@
   <input type="hidden" name="platform" value="{{ post.platform }}">
 </form>
 
-<form method="post" action="{{ url_for('social.upload_photo', post_id=post.id) }}" enctype="multipart/form-data" style="margin-top:0.5rem;">
-  <label>Add photos manually (select multiple to upload them all at once)
-    <input type="file" name="photo" accept="image/*" multiple>
+<form method="post" action="{{ url_for('social.upload_photo', post_id=post.id) }}" enctype="multipart/form-data" id="upload-form" style="margin-top:0.5rem;">
+  <label>Add photos manually
+    <input type="file" name="photo" id="photo-input" accept="image/*" multiple>
   </label>
+  <p class="muted">Any image file (JPG, PNG, GIF, WEBP, etc.) — up to 8MB each. You can pick files more than once; each pick adds to the list below instead of replacing it.</p>
+  <ul id="staged-photo-list" style="list-style:none; padding:0; margin:0 0 0.5rem;"></ul>
   <button type="submit" class="secondary outline">Upload photo(s)</button>
 </form>
+<script>
+(function () {
+  var input = document.getElementById('photo-input');
+  var list = document.getElementById('staged-photo-list');
+  var staged = [];
+
+  function formatSize(bytes) {
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+
+  function render() {
+    list.innerHTML = '';
+    staged.forEach(function (file, i) {
+      var li = document.createElement('li');
+      li.className = 'muted';
+      li.style.cssText = 'display:flex; justify-content:space-between; align-items:center; gap:0.5rem;';
+
+      var label = document.createElement('span');
+      label.textContent = file.name + ' (' + formatSize(file.size) + ')';
+      li.appendChild(label);
+
+      var removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.textContent = 'Remove';
+      removeBtn.className = 'secondary outline';
+      removeBtn.style.cssText = 'padding:0.1rem 0.6rem; font-size:0.8rem;';
+      removeBtn.addEventListener('click', function () {
+        staged.splice(i, 1);
+        sync();
+      });
+      li.appendChild(removeBtn);
+
+      list.appendChild(li);
+    });
+  }
+
+  function sync() {
+    var dt = new DataTransfer();
+    staged.forEach(function (file) { dt.items.add(file); });
+    input.files = dt.files;
+    render();
+  }
+
+  input.addEventListener('change', function () {
+    for (var i = 0; i < input.files.length; i++) {
+      var file = input.files[i];
+      var alreadyStaged = staged.some(function (f) {
+        return f.name === file.name && f.size === file.size;
+      });
+      if (!alreadyStaged) {
+        staged.push(file);
+      }
+    }
+    sync();
+  });
+})();
+</script>
 
 <hr>
 
