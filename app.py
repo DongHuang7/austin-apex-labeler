@@ -92,6 +92,20 @@ def create_app():
         db.session.commit()
         click.echo(f"Created user {email}.")
 
+    @app.cli.command("reset-password")
+    @click.argument("email")
+    @click.password_option()
+    def reset_password(email, password):
+        """Reset an existing dashboard login's password, e.g.:
+        flask reset-password yifan@austinapexre.com"""
+        user = User.query.filter_by(email=email.lower()).first()
+        if user is None:
+            click.echo(f"No user {email}.")
+            return
+        user.password_hash = generate_password_hash(password, method="pbkdf2:sha256")
+        db.session.commit()
+        click.echo(f"Reset password for {email}.")
+
     return app
 
 
