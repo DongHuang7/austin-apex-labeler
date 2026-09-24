@@ -1,19 +1,16 @@
 {% extends "base.html" %}
 {% block title %}Review Contacts — Austin Apex{% endblock %}
 {% block content %}
-<hgroup>
-  <h2>Contacts to review</h2>
-  <p class="muted">New people who emailed Yifan or Anthony but aren't in Google Contacts yet.</p>
-</hgroup>
+<div class="page-header"><div><p class="eyebrow">Keep your database clean</p><h1>Contacts to review</h1><p class="page-subtitle">Confirm new people before they’re added to Google Contacts. We suggest a group based on the conversation.</p></div></div>
 
-<div style="display:flex; gap:1rem; align-items:center; margin-bottom:1rem;">
+<div class="toolbar">
   <form method="post" action="{{ url_for('contacts.scan') }}" style="margin:0;">
-    <button type="submit">Check for new contacts now</button>
+    <button type="submit" class="primary-action">Check for new contacts</button>
   </form>
   <a href="{{ url_for('contacts.history') }}">View history →</a>
 </div>
 
-<form method="get" style="display:flex; gap:1rem; align-items:end; margin-bottom:1rem;">
+<form method="get" class="filter-bar">
   <label>Account
     <select name="account" onchange="this.form.submit()">
       <option value="">All</option>
@@ -34,7 +31,7 @@
 {% if rows %}
 <form id="bulk-form" method="post" action="{{ url_for('contacts.bulk_approve') }}"></form>
 
-<table class="review">
+<article class="data-card"><div class="table-wrap"><table class="review">
   <thead>
     <tr>
       <th><input type="checkbox" onclick="document.querySelectorAll('.row-check').forEach(c => c.checked = this.checked)"></th>
@@ -51,10 +48,10 @@
       <td><input type="checkbox" class="row-check" name="row_id" value="{{ row.id }}" form="bulk-form"></td>
       <td>{{ row.account|title }}</td>
       <td>
-        <strong>{{ row.name or '(no name)' }}</strong><br>
+        <strong class="contact-name">{{ row.name or '(no name)' }}</strong><br>
         <span class="muted">{{ row.email }}</span>
       </td>
-      <td class="muted">{{ row.suggested_reason }}</td>
+      <td><div class="hint-box">{{ row.suggested_reason }}</div></td>
       <td>
         <select name="category_{{ row.id }}" form="bulk-form" id="cat-{{ row.id }}">
           {% for c in categories %}
@@ -75,10 +72,10 @@
     </tr>
     {% endfor %}
   </tbody>
-</table>
+</table></div></article>
 
-<button type="submit" form="bulk-form">Approve selected</button>
+<button type="submit" form="bulk-form" class="primary-action" style="margin-top:1rem;">Approve selected contacts</button>
 {% else %}
-<p class="muted">Nothing to review right now.</p>
+<div class="empty-state"><div class="empty-icon">✓</div><h3>You’re all caught up</h3><p>There are no new contacts waiting for review.</p></div>
 {% endif %}
 {% endblock %}

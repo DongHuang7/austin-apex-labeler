@@ -11,11 +11,11 @@
 
 {% if listing.photo_urls %}
 <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(120px, 1fr)); gap:0.5rem;">
-  {% for url in listing.photo_urls %}
+  {% for url in listing.photo_urls[:3] %}
   <img src="{{ url }}" style="width:100%;border-radius:6px;">
   {% endfor %}
 </div>
-<p class="muted">{{ listing.photo_urls|length }} photo{{ 's' if listing.photo_urls|length != 1 }}</p>
+<p class="muted">The draft starts with these {{ [listing.photo_urls|length, 3]|min }} photos. You can choose different MLS photos or upload your own on the next screen.</p>
 {% else %}
 <p class="muted">
   No MLS photos cached for this listing yet —
@@ -39,7 +39,7 @@
         onsubmit="this.account_owner.value = document.getElementById('account_owner').value;">
     <input type="hidden" name="platform" value="{{ p }}">
     <input type="hidden" name="account_owner" value="yifan">
-    <button type="submit">Draft {{ platform_labels[p] }} post</button>
+    <button type="submit">Generate &amp; save {{ platform_labels[p] }} draft</button>
   </form>
   {% endfor %}
 </div>

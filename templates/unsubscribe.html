@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+{% block title %}Unsubscribe — Austin Apex{% endblock %}
+{% block content %}
+<hgroup>
+  <h2>Unsubscribe</h2>
+</hgroup>
+
+{% if invalid %}
+<p>This unsubscribe link isn't valid. If you'd like to stop receiving emails from us, reply to any email and let us know.</p>
+{% elif done %}
+<p><strong>{{ email }}</strong> has been unsubscribed. You won't receive any more marketing emails from Austin Apex Real Estate at this address.</p>
+{% elif already %}
+<p><strong>{{ email }}</strong> is already unsubscribed — you won't receive any more marketing emails from us at this address.</p>
+{% else %}
+<p>Unsubscribe <strong>{{ email }}</strong> from Austin Apex Real Estate marketing emails?</p>
+<form method="post">
+  <button type="submit">Unsubscribe me</button>
+</form>
+{% endif %}
+{% endblock %}

@@ -43,9 +43,18 @@ def create_app():
     app.config["SECRET_KEY"] = os.environ["FLASK_SECRET_KEY"]
     app.config["SQLALCHEMY_DATABASE_URI"] = _database_url()
     app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {"pool_pre_ping": True}
+    # Needed to build absolute URLs (e.g. the unsubscribe link embedded in
+    # each sent email) from contexts with no incoming HTTP request to infer
+    # a host from — the scheduled-send scripts under scripts/, and the
+    # dashboard-load check in scheduler.py when it's not itself handling
+    # that specific request.
+    app.config["APP_BASE_URL"] = os.environ.get("APP_BASE_URL", "http://localhost:5000")
 
     db.init_app(app)
     Migrate(app, db)
+
+    from timeutil import to_local
+    app.jinja_env.filters["localtime"] = to_local
 
     login_manager = LoginManager()
     login_manager.login_view = "auth.login"
@@ -62,6 +71,7 @@ def create_app():
     from routes.legacy_labels import bp as legacy_labels_bp
     from routes.oauth import bp as oauth_bp
     from routes.social import bp as social_bp
+    from routes.unsubscribe import bp as unsubscribe_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(dashboard_bp)
@@ -70,6 +80,7 @@ def create_app():
     app.register_blueprint(campaigns_bp)
     app.register_blueprint(social_bp)
     app.register_blueprint(legacy_labels_bp)
+    app.register_blueprint(unsubscribe_bp)
 
     @app.cli.command("create-user")
     @click.argument("email")

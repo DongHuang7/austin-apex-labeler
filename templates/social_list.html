@@ -1,21 +1,13 @@
 {% extends "base.html" %}
 {% block title %}Social Posts — Austin Apex{% endblock %}
 {% block content %}
-<hgroup>
-  <h2>Social posts</h2>
-  <p class="muted">
-    <a href="{{ url_for('campaigns.new_step1') }}">Pick a listing to draft a post →</a>
-    &nbsp;|&nbsp;
-    <a href="{{ url_for('social.new_general') }}">Post something manually (festival post, announcement, no listing) →</a>
-    &nbsp;|&nbsp;
-    <a href="{{ url_for('social.templates') }}">Saved templates →</a>
-    &nbsp;|&nbsp;
-    <a href="{{ url_for('social.accounts') }}">Manage connected accounts →</a>
-  </p>
-</hgroup>
+<div class="page-header">
+  <div><p class="eyebrow">Your content studio</p><h1>Social posts</h1><p class="page-subtitle">Draft, review, and publish posts to your connected social accounts.</p></div>
+  <div class="page-actions"><a href="{{ url_for('campaigns.new_step1') }}" role="button" class="primary-action">Post a listing</a><a href="{{ url_for('social.new_general') }}" role="button" class="secondary">Create another post</a></div>
+</div>
 
 {% if posts %}
-<table class="review">
+<article class="data-card"><div class="table-wrap"><table class="review">
   <thead><tr><th>Created</th><th>Agent</th><th>Platform</th><th>Caption</th><th>Status</th><th></th></tr></thead>
   <tbody>
     {% for p in posts %}
@@ -23,27 +15,22 @@
       <td>{{ p.created_at.strftime('%b %d, %I:%M %p') if p.created_at else '' }}</td>
       <td>{{ p.account_owner|title }}</td>
       <td>{{ platform_labels.get(p.platform, p.platform) }}</td>
-      <td>{{ (p.final_caption or p.draft_caption or '')[:80] }}{% if (p.final_caption or '')|length > 80 %}…{% endif %}</td>
+      <td class="caption-preview">{{ (p.final_caption or p.draft_caption or '')[:100] }}{% if (p.final_caption or p.draft_caption or '')|length > 100 %}…{% endif %}</td>
       <td>
-        {% if p.status == 'posted' %}<span style="color:#1e4620;">Posted</span>
-        {% elif p.status == 'failed' %}<span style="color:#611a15;">Failed</span>
-        {% elif p.status == 'scheduled' %}<span>Scheduled</span>
-        {% elif p.status == 'approved' %}<span>Approved</span>
-        {% else %}<span class="muted">Draft</span>
-        {% endif %}
+        <span class="status status-{{ p.status or 'draft' }}">{{ (p.status or 'draft')|title }}</span>
       </td>
-      <td>
+      <td><div class="row-actions">
         <a href="{{ url_for('social.edit', post_id=p.id) }}">Open</a>
         <form method="post" action="{{ url_for('social.delete_post', post_id=p.id) }}" style="display:inline;"
               onsubmit="return confirm('Delete this post? This cannot be undone.');">
-          <button type="submit" class="secondary outline" style="padding:0.1rem 0.6rem;">Delete</button>
+          <button type="submit" class="secondary outline compact-button">Delete</button>
         </form>
-      </td>
+      </div></td>
     </tr>
     {% endfor %}
   </tbody>
-</table>
+</table></div></article>
 {% else %}
-<p class="muted">No social posts yet.</p>
+<div class="empty-state"><div class="empty-icon">◎</div><h3>No posts yet</h3><p>Choose an MLS listing and we’ll draft the caption and select three photos.</p><a href="{{ url_for('campaigns.new_step1') }}" role="button">Post a listing</a></div>
 {% endif %}
 {% endblock %}

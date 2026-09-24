@@ -1,70 +1,783 @@
 {% extends "base.html" %}
-{% block title %}Manual Email — Austin Apex{% endblock %}
+{% block title %}{% if campaign %}Edit Campaign{% else %}Manual Email{% endif %} — Austin Apex{% endblock %}
 {% block content %}
+<style>
+  .composer-toolbar {
+    display: flex; justify-content: space-between; align-items: center; gap: 1rem; flex-wrap: wrap;
+    padding: 0.75rem 1rem; background: #fff; border: 1px solid #e2e2e2; border-radius: 8px;
+    margin-bottom: 1.25rem; position: sticky; top: 0.5rem; z-index: 5;
+  }
+  /* Pico defaults buttons to width:100% — inside a flex row that becomes a
+     full-width block the moment it wraps to its own line, which it does
+     whenever the row's available space is tight. Force auto width so
+     toolbar buttons stay pill-sized instead of ballooning. */
+  .composer-toolbar button { width: auto; flex: 0 0 auto; }
+  .composer-subject {
+    font-size: 1.05rem; font-weight: 600; border: none; box-shadow: none; padding: 0.3rem 0;
+    background: transparent; min-width: 260px; flex: 1;
+  }
+  .composer-subject:focus { box-shadow: none; outline: none; }
+  .composer-layout { display: grid; grid-template-columns: 280px 1fr; gap: 1.5rem; align-items: start; }
+  @media (max-width: 900px) { .composer-layout { grid-template-columns: 1fr; } }
+  /* Not position:sticky — the canvas can be shorter than the panel (e.g.
+     one small text block), and a sticky panel taller than its grid cell's
+     sibling leaves a confusing blank gap once you scroll past the canvas. */
+  .composer-panel { }
+  .panel-section { margin-bottom: 1.5rem; }
+  .panel-label {
+    font-size: 0.72rem; font-weight: 700; letter-spacing: 1px; color: #888; text-transform: uppercase;
+    margin-bottom: 0.5rem; display: block;
+  }
+  .palette-card {
+    display: flex; align-items: center; gap: 0.6rem; width: 100%; text-align: left;
+    padding: 0.55rem 0.75rem; border: 1px solid #e2e2e2; border-radius: 6px; background: #fff;
+    cursor: pointer; font-size: 0.88rem; margin-bottom: 0.4rem; color: #1a1a1a;
+  }
+  .palette-card:hover { border-color: #264653; background: #f7f9fa; }
+  .palette-icon { font-size: 1.1rem; width: 1.4rem; text-align: center; }
+  .email-canvas { background: #eef0f1; border-radius: 12px; padding: 1.75rem 1rem; }
+  .email-canvas-inner {
+    max-width: 600px; margin: 0 auto; background: #fff; border-radius: 8px; overflow: hidden;
+    box-shadow: 0 2px 14px rgba(0,0,0,0.08);
+  }
+  .canvas-header {
+    background: #264653; color: #fff; padding: 18px 24px; font-family: Arial, sans-serif;
+    font-weight: bold; letter-spacing: 2px; font-size: 14px; text-align: center;
+  }
+  .canvas-body { padding: 28px 32px 8px; }
+  .canvas-footer-note {
+    text-align: center; padding: 12px 24px 20px; font-size: 0.72rem; color: #999;
+  }
+  .canvas-block { position: relative; border: 1px dashed transparent; border-radius: 6px; padding: 0.6rem 0.6rem 0.75rem; margin-bottom: 0.75rem; }
+  .canvas-block:hover { border-color: #cbd5d9; background: #fafbfc; }
+  .block-tag {
+    display: inline-block; background: #264653; color: #fff; font-size: 0.62rem; font-weight: 700;
+    letter-spacing: 1px; padding: 2px 8px; border-radius: 3px; text-transform: uppercase; margin-bottom: 0.5rem;
+  }
+  .block-toprow { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem; }
+  .drag-handle { cursor: grab; color: #999; font-size: 1.2rem; line-height: 1; user-select: none; }
+  .exact-preview-toggle summary { cursor: pointer; }
+</style>
+
 <hgroup>
+  {% if campaign %}
+  <h2>Edit: {{ campaign.subject or "(no subject yet)" }}</h2>
+  <p class="muted">
+    <a href="{{ url_for('campaigns.detail', campaign_id=campaign.id) }}">← Back to campaign</a> ·
+    {% if campaign.status == 'pending' %}Pending review.
+    {% elif campaign.status == 'draft' %}Draft.
+    {% else %}Scheduled for {% if campaign.scheduled_time %}{{ (campaign.scheduled_time|localtime).strftime('%b %d, %Y %I:%M %p %Z') }}{% endif %}.
+    {% endif %}
+    Changes save automatically as you edit; nothing is sent until you click Send.
+  </p>
+  {% else %}
   <h2>Send a manual email</h2>
   <p class="muted">
     <a href="{{ url_for('campaigns.list_campaigns') }}">← Back to campaigns</a> ·
     For content that isn't tied to a listing — festival greetings, announcements, market updates.
   </p>
+  {% endif %}
 </hgroup>
 
-{% if templates %}
-<form>
-  <label>Start from a saved template
-    <select onchange="if (this.value) window.location = '{{ url_for('campaigns.new_general') }}?template_id=' + this.value;">
-      <option value="">— none —</option>
-      {% for t in templates %}
-      <option value="{{ t.id }}">{{ t.name }}</option>
-      {% endfor %}
-    </select>
-  </label>
+
+<form method="post"
+      action="{% if campaign %}{{ url_for('campaigns.send_campaign_edit', campaign_id=campaign.id) }}{% else %}{{ url_for('campaigns.send_general') }}{% endif %}"
+      enctype="multipart/form-data" id="compose-form">
+  {% if campaign %}
+  <input type="hidden" name="campaign_id" value="{{ campaign.id }}">
+  {% endif %}
+  {% if blocks is not none %}
+  <input type="hidden" name="content_blocks" id="content-blocks-field" value="{{ content_blocks_json }}">
+  {% endif %}
+  <button type="submit" id="refresh-btn"
+          formaction="{% if campaign %}{{ url_for('campaigns.edit_campaign', campaign_id=campaign.id) }}{% else %}{{ url_for('campaigns.new_general') }}{% endif %}"
+          formmethod="get" formnovalidate style="display:none;" aria-hidden="true"></button>
+
+  <div class="composer-toolbar">
+    <input type="text" name="subject" value="{{ subject }}" placeholder="Subject line…" class="composer-subject"
+           onblur="window.__refreshOrSaveDraft()">
+    <span class="muted" id="autosave-status" style="font-size:0.78rem;"></span>
+    <div style="display:flex; gap:0.5rem;">
+      {% if not campaign %}<button type="button" id="save-draft-button" class="secondary">Save draft</button>{% endif %}
+      <button type="submit" formaction="{{ url_for('campaigns.test_send') }}" formnovalidate
+              class="secondary outline">Send test to me</button>
+      <button type="submit" name="dry_run" value="0">Send now</button>
+    </div>
+  </div>
+
+  <div class="composer-layout">
+    <aside class="composer-panel">
+      {% if blocks is not none %}
+      <div class="panel-section">
+        <span class="panel-label">Content blocks — click to add</span>
+        <button type="button" class="palette-card" onclick="addTextBlock()">
+          <span class="palette-icon">📝</span> Text paragraph
+        </button>
+        <button type="button" class="palette-card" onclick="document.getElementById('photo-input').click()">
+          <span class="palette-icon">🖼️</span> Photo
+        </button>
+        <button type="button" class="palette-card" onclick="combineSelectedIntoRow()">
+          <span class="palette-icon">▦</span> Combine selected into a row
+        </button>
+        <input type="file" name="photo" id="photo-input" accept="image/*" multiple style="display:none;">
+        <ul id="staged-photo-list" style="list-style:none; padding:0; margin:0.25rem 0;"></ul>
+        <button type="submit"
+                formaction="{% if campaign %}{{ url_for('campaigns.upload_campaign_photo', campaign_id=campaign.id) }}{% else %}{{ url_for('campaigns.upload_general_photo') }}{% endif %}"
+                formnovalidate class="secondary outline" style="width:100%; font-size:0.85rem;">Upload staged photo(s)</button>
+      </div>
+      {% else %}
+      <p class="muted" style="font-size:0.85rem;">This campaign's body came from a saved HTML template, so it can't be edited here — only the subject above can change.</p>
+      {% endif %}
+
+      <div class="panel-section">
+        <span class="panel-label">Generate with AI</span>
+        <input type="text" name="topic" placeholder="Describe a topic…" style="margin-bottom:0.4rem;">
+        <button type="submit"
+                formaction="{% if campaign %}{{ url_for('campaigns.generate_general_campaign', campaign_id=campaign.id) }}{% else %}{{ url_for('campaigns.generate_general') }}{% endif %}"
+                formnovalidate class="secondary outline" style="width:100%; font-size:0.85rem;">Generate draft</button>
+      </div>
+
+      <div class="panel-section">
+        <span class="panel-label">Call to action</span>
+        <label style="font-size:0.85rem;">Button link
+          <input type="text" name="cta_url" placeholder="{{ default_cta_url }}"
+                 value="{{ campaign.cta_url if campaign and campaign.cta_url else '' }}"
+                 onblur="window.__refreshOrSaveDraft()">
+        </label>
+        <p class="muted" style="font-size:0.78rem; margin:0.3rem 0 0;">Every manual email gets a "Visit our website" button — leave blank to send people to the homepage, or point it somewhere specific.</p>
+      </div>
+
+      <div class="panel-section">
+        <span class="panel-label">Recipients</span>
+        <label style="font-size:0.85rem;">Group
+          <select name="recipient_group" onchange="window.__refreshOrSaveDraft()">
+            {% for g in recipient_groups %}
+            <option value="{{ g }}" {% if g == recipient_group %}selected{% endif %}>{{ g }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <label style="font-size:0.85rem;">From account
+          <select name="account" onchange="window.__refreshOrSaveDraft()">
+            {% for a in accounts %}
+            <option value="{{ a }}" {% if a == selected_account %}selected{% endif %}>{{ a|title }}</option>
+            {% endfor %}
+          </select>
+        </label>
+        <button type="submit"
+                formaction="{% if campaign %}{{ url_for('campaigns.check_recipients_campaign', campaign_id=campaign.id) }}{% else %}{{ url_for('campaigns.check_recipients_general') }}{% endif %}"
+                formnovalidate class="secondary outline" style="width:100%; font-size:0.85rem;">Check recipients</button>
+
+        {% if recipients is not none %}
+        <p style="font-size:0.85rem; margin-top:0.75rem;"><strong>Goes to {{ recipients|length }} {{ recipient_group }}{{ 's' if recipients|length != 1 }}</strong></p>
+        <input type="hidden" name="recipients_checked" value="1">
+        {% if recipients %}
+        <div style="max-height:180px; overflow-y:auto; border:1px solid #ddd; border-radius:6px; padding:0.5rem 0.75rem; margin-bottom:0.5rem; font-size:0.85rem;">
+          {% for r in recipients %}
+          <label style="display:block;">
+            <input type="checkbox" name="recipient_email" value="{{ r.email }}" checked>
+            {{ r.name or r.email }}
+          </label>
+          {% endfor %}
+        </div>
+        {% else %}
+        <p class="muted" style="font-size:0.8rem;">No contacts in this group for {{ selected_account|title }}.</p>
+        {% endif %}
+        {% endif %}
+      </div>
+
+      <div class="panel-section">
+        <span class="panel-label">Schedule &amp; send</span>
+        <label style="font-size:0.85rem;">Send later (CDT)
+          <input type="datetime-local" name="scheduled_time"
+                 value="{% if campaign and campaign.scheduled_time %}{{ (campaign.scheduled_time|localtime).strftime('%Y-%m-%dT%H:%M') }}{% endif %}">
+        </label>
+        <button type="submit" name="dry_run" value="1" class="secondary" style="width:100%; font-size:0.85rem;">Preview send (dry run)</button>
+      </div>
+
+      <details>
+        <summary role="button" class="secondary outline" style="font-size:0.85rem;">Save as template</summary>
+        <div style="padding-top:0.6rem;">
+          <input type="text" name="name" placeholder="Template name…" style="margin-bottom:0.4rem;">
+          <button type="submit" formaction="{{ url_for('campaigns.save_template') }}" formnovalidate
+                  class="secondary outline" style="width:100%; font-size:0.85rem;">Save</button>
+        </div>
+      </details>
+    </aside>
+
+    <div>
+      <div class="email-canvas">
+        <div class="email-canvas-inner">
+          <div class="canvas-header">AUSTIN APEX REAL ESTATE</div>
+          <div class="canvas-body">
+            {% if blocks is not none %}
+            <div id="block-list"></div>
+            {% else %}
+            <p class="muted">Preview only — see the exact rendered version below.</p>
+            {% endif %}
+          </div>
+          <p class="canvas-footer-note">Agent signature, disclaimer, and unsubscribe link are added automatically — see the exact preview below.</p>
+        </div>
+      </div>
+
+      <details class="exact-preview-toggle" style="margin-top:1rem;">
+        <summary class="muted">Exact rendered preview (what actually sends)</summary>
+        {% if campaign %}
+        <button type="button" onclick="if (window.refreshPreview) refreshPreview();"
+                class="secondary outline" style="margin-top:0.75rem;">Refresh exact preview</button>
+        {% else %}
+        <button type="submit" formaction="{{ url_for('campaigns.new_general') }}" formmethod="get" formnovalidate
+                class="secondary outline" style="margin-top:0.75rem;">Refresh exact preview</button>
+        {% endif %}
+        <div class="email-preview" style="margin-top:0.5rem;">
+          <iframe srcdoc="{{ html_preview|e }}"></iframe>
+        </div>
+      </details>
+    </div>
+  </div>
 </form>
+
+{% if blocks is not none %}
+<script src="https://cdn.jsdelivr.net/npm/sortablejs@1.15.2/Sortable.min.js"></script>
+<script>
+(function () {
+  var blocksField = document.getElementById('content-blocks-field');
+  var listEl = document.getElementById('block-list');
+  var blocks = JSON.parse(blocksField.value || '[]');
+
+  // Two modes: composing from scratch (campaignId is null — nothing is
+  // saved to the database until the first meaningful edit, at which point
+  // createDraftThenGo() creates a real Campaign row and hands off to this
+  // same page's autosave mode) vs. continuing an existing campaign
+  // (campaignId is set server-side — every edit autosaves straight to that
+  // row, same pattern this page uses once a fresh draft gets created).
+  {% if campaign %}
+  var campaignId = {{ campaign.id }};
+  var autosaveUrl = '{{ url_for("campaigns.autosave_campaign_edit", campaign_id=campaign.id) }}';
+  {% else %}
+  var campaignId = null;
+  var autosaveUrl = null;
+  {% endif %}
+  var draftUrl = '{{ url_for("campaigns.create_general_draft") }}';
+  var draftInFlight = false;
+  var draftGraceTimer = null;
+  var autosaveTimer = null;
+  var statusEl = document.getElementById('autosave-status');
+
+  function hasMeaningfulContent() {
+    var subjectInput = document.querySelector('input[name="subject"]');
+    if (subjectInput && subjectInput.value.trim()) return true;
+    return blocks.some(function (b) {
+      if (b.type === 'text') return !!(b.content || '').trim();
+      if (b.type === 'photo') return !!b.url;
+      if (b.type === 'row') {
+        return (b.cells || []).some(function (c) {
+          return c.type === 'photo' ? !!c.url : !!(c.content || '').trim();
+        });
+      }
+      return false;
+    });
+  }
+
+  function currentFormFields() {
+    var subjectInput = document.querySelector('input[name="subject"]');
+    var groupSelect = document.querySelector('select[name="recipient_group"]');
+    var accountSelect = document.querySelector('select[name="account"]');
+    var ctaUrlInput = document.querySelector('input[name="cta_url"]');
+    var body = new URLSearchParams();
+    body.set('subject', subjectInput ? subjectInput.value : '');
+    body.set('content_blocks', blocksField.value);
+    body.set('recipient_group', groupSelect ? groupSelect.value : 'All');
+    body.set('account', accountSelect ? accountSelect.value : 'yifan');
+    body.set('cta_url', ctaUrlInput ? ctaUrlInput.value : '');
+    return body;
+  }
+
+  function doAutosave() {
+    if (statusEl) statusEl.textContent = 'Saving…';
+    return fetch(autosaveUrl, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: currentFormFields().toString(),
+    }).then(function (r) {
+      if (statusEl) statusEl.textContent = r.ok ? 'Saved' : 'Save failed';
+    }).catch(function () {
+      if (statusEl) statusEl.textContent = 'Save failed';
+    });
+  }
+
+  function scheduleAutosave() {
+    clearTimeout(autosaveTimer);
+    if (statusEl) statusEl.textContent = 'Editing…';
+    autosaveTimer = setTimeout(doAutosave, 1200);
+  }
+
+  // Any click on "Refresh exact preview" must autosave FIRST (awaited) —
+  // the page reload shows whatever's in the database, so reloading before
+  // the current edit is saved would show stale content and look like the
+  // edit was lost.
+  window.refreshPreview = function () {
+    clearTimeout(autosaveTimer);
+    doAutosave().then(function () { location.reload(); });
+  };
+
+  function createDraftThenGo() {
+    if (draftInFlight || !hasMeaningfulContent()) return;
+    draftInFlight = true;
+    fetch(draftUrl, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: currentFormFields().toString(),
+    }).then(function (r) { return r.json(); }).then(function (data) {
+      if (data.ok) {
+        window.location.href = '/campaigns/' + data.id + '/edit';
+      } else {
+        draftInFlight = false;
+      }
+    }).catch(function () { draftInFlight = false; });
+  }
+
+  var saveDraftButton = document.getElementById('save-draft-button');
+  if (saveDraftButton) saveDraftButton.addEventListener('click', function () {
+    if (!hasMeaningfulContent()) {
+      statusEl.textContent = 'Add a subject or some content first';
+      return;
+    }
+    statusEl.textContent = 'Saving…';
+    createDraftThenGo();
+  });
+
+  // Saving a fresh draft navigates away (see createDraftThenGo) — firing
+  // that the instant a text field blurs would yank the page out from under
+  // someone who just tabbed/clicked to the next field to keep typing. Give
+  // it a grace period instead, and cancel it the moment they focus or type
+  // in any field again before it fires — only truly settling down (no
+  // focus changes, no keystrokes) for 2s actually triggers the redirect.
+  // Once a campaign already exists there's no navigation to protect
+  // against — just debounce-autosave in place, same as scheduleAutosave().
+  function saveDraftSoon() {
+    if (campaignId) { scheduleAutosave(); return; }
+    if (!hasMeaningfulContent()) return;
+    clearTimeout(draftGraceTimer);
+    draftGraceTimer = setTimeout(createDraftThenGo, 2000);
+  }
+
+  function saveDraftNow() {
+    if (campaignId) { scheduleAutosave(); return; }
+    createDraftThenGo();
+  }
+
+  document.addEventListener('input', function (e) {
+    if (e.target.matches && e.target.matches('input, textarea')) clearTimeout(draftGraceTimer);
+  });
+  // 'focus' doesn't bubble, so this needs the capture phase — cancels the
+  // pending save the instant focus lands in a field, even before the first
+  // keystroke (closing the exact gap that caused the navigation to fire
+  // mid-typing: the pause between blurring one field and typing the next).
+  document.addEventListener('focus', function (e) {
+    if (e.target.matches && e.target.matches('input, textarea')) clearTimeout(draftGraceTimer);
+  }, true);
+
+  // Blur/change points that used to just refresh the preview (a full
+  // reload of this stateless page) now save a real draft (or, once one
+  // exists, force-save-and-reload the preview) instead — same trigger,
+  // better outcome.
+  window.__refreshOrSaveDraft = function () {
+    if (campaignId) {
+      if (window.refreshPreview) refreshPreview();
+      return;
+    }
+    if (hasMeaningfulContent()) {
+      saveDraftSoon();
+    } else {
+      document.getElementById('refresh-btn').click();
+    }
+  };
+
+  function sync() {
+    blocksField.value = JSON.stringify(blocks);
+    render();
+    saveDraftSoon();
+  }
+
+  function tag(text) {
+    var t = document.createElement('span');
+    t.className = 'block-tag';
+    t.textContent = text;
+    return t;
+  }
+
+  // Drag-resize a single element's width as a percent of a stable reference
+  // container (captured once at drag start, so shrinking the element mid-drag
+  // never changes what "100%" means). Plain mouse events, not a library —
+  // fully self-contained so it's simple to reason about and to test.
+  function makeResizable(sizedEl, referenceEl, getPct, setPct, minPct, onLive) {
+    minPct = minPct || 10;
+    sizedEl.style.position = 'relative';
+    var handle = document.createElement('div');
+    handle.className = 'resize-handle';
+    handle.title = 'Drag to resize';
+    handle.style.cssText = 'position:absolute; top:50%; right:-7px; transform:translateY(-50%); ' +
+      'width:14px; height:36px; background:#264653; border-radius:3px; cursor:ew-resize; z-index:2; border:2px solid #fff;';
+    sizedEl.appendChild(handle);
+
+    var dragging = false, startX = 0, startPct = 0, refWidthPx = 0, livePct = 0;
+
+    function onMove(e) {
+      if (!dragging) return;
+      var dx = e.clientX - startX;
+      var deltaPct = (dx / refWidthPx) * 100;
+      livePct = Math.round(Math.max(minPct, Math.min(100, startPct + deltaPct)));
+      sizedEl.style.width = livePct + '%';
+      if (onLive) onLive(livePct);
+    }
+    function onUp() {
+      if (!dragging) return;
+      dragging = false;
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      setPct(livePct);
+    }
+    handle.addEventListener('mousedown', function (e) {
+      e.preventDefault();
+      dragging = true;
+      startX = e.clientX;
+      startPct = getPct();
+      livePct = startPct;
+      refWidthPx = referenceEl.getBoundingClientRect().width;
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+  }
+
+  // Drag the boundary between two adjacent row cells — grows one, shrinks
+  // the other by the same amount, keeping their combined width constant.
+  // The standard "resize a spreadsheet column" interaction.
+  function makeBoundaryResizable(leftEl, rightEl, getLeftPct, getRightPct, setBoth, refEl) {
+    var handle = document.createElement('div');
+    handle.className = 'row-resize-handle';
+    handle.title = 'Drag to resize';
+    handle.style.cssText = 'width:8px; flex:0 0 auto; cursor:ew-resize; background:#264653; ' +
+      'border-radius:2px; align-self:stretch; opacity:0.5;';
+    var dragging = false, startX = 0, startLeft = 0, startRight = 0, refWidthPx = 0, liveLeft = 0, liveRight = 0;
+
+    function onMove(e) {
+      if (!dragging) return;
+      var dx = e.clientX - startX;
+      var deltaPct = (dx / refWidthPx) * 100;
+      var total = startLeft + startRight;
+      liveLeft = Math.max(10, Math.min(total - 10, startLeft + deltaPct));
+      liveRight = total - liveLeft;
+      leftEl.style.width = liveLeft + '%';
+      rightEl.style.width = liveRight + '%';
+    }
+    function onUp() {
+      if (!dragging) return;
+      dragging = false;
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      setBoth(liveLeft, liveRight);
+    }
+    handle.addEventListener('mousedown', function (e) {
+      e.preventDefault();
+      dragging = true;
+      startX = e.clientX;
+      startLeft = getLeftPct();
+      startRight = getRightPct();
+      liveLeft = startLeft;
+      liveRight = startRight;
+      refWidthPx = refEl.getBoundingClientRect().width;
+      document.addEventListener('mousemove', onMove);
+      document.addEventListener('mouseup', onUp);
+    });
+    return handle;
+  }
+
+  function makeSelectCheckbox(block) {
+    var selectLabel = document.createElement('label');
+    selectLabel.style.cssText = 'font-size:0.8rem; display:flex; align-items:center; gap:0.4rem; margin-top:0.5rem;';
+    var selectCb = document.createElement('input');
+    selectCb.type = 'checkbox';
+    selectCb.checked = !!block._selectedForRow;
+    selectCb.addEventListener('change', function () {
+      block._selectedForRow = selectCb.checked;
+    });
+    selectLabel.appendChild(selectCb);
+    selectLabel.appendChild(document.createTextNode('Select to combine into a row (pick 2 or 3 — text or photo)'));
+    return selectLabel;
+  }
+
+  function render() {
+    listEl.innerHTML = '';
+    if (blocks.length === 0) {
+      var empty = document.createElement('p');
+      empty.className = 'muted';
+      empty.textContent = 'No content yet — add a text paragraph or photo from the panel on the left.';
+      listEl.appendChild(empty);
+      return;
+    }
+    blocks.forEach(function (block, i) {
+      var row = document.createElement('div');
+      row.className = 'canvas-block block-row';
+
+      var topRow = document.createElement('div');
+      topRow.className = 'block-toprow';
+      var handle = document.createElement('span');
+      handle.className = 'drag-handle';
+      handle.textContent = '⠿';
+      handle.title = 'Drag to reorder';
+      topRow.appendChild(handle);
+      topRow.appendChild(tag(block.type === 'photo' ? 'Photo' : block.type === 'row' ? 'Row' : 'Text'));
+      row.appendChild(topRow);
+
+      var body = document.createElement('div');
+      if (block.type === 'photo') {
+        var refWrap = document.createElement('div');
+        var sized = document.createElement('div');
+        sized.style.cssText = 'width:' + (block.width_pct || 100) + '%;';
+        var img = document.createElement('img');
+        img.src = block.url;
+        img.style.cssText = 'width:100%; display:block; border-radius:4px;';
+        sized.appendChild(img);
+        refWrap.appendChild(sized);
+        body.appendChild(refWrap);
+
+        var pctLabel = document.createElement('p');
+        pctLabel.className = 'muted';
+        pctLabel.style.cssText = 'font-size:0.78rem; margin:0.4rem 0;';
+        pctLabel.textContent = (block.width_pct || 100) + '% width — drag the ' + '◆' + ' handle to resize';
+        body.appendChild(pctLabel);
+
+        makeResizable(sized, refWrap, function () { return block.width_pct || 100; }, function (pct) {
+          blocks[i].width_pct = pct;
+          blocksField.value = JSON.stringify(blocks);
+          saveDraftSoon();
+        }, 15, function (livePct) {
+          pctLabel.textContent = livePct + '% width — drag the ' + '◆' + ' handle to resize';
+        });
+
+        var alignLabel = document.createElement('label');
+        alignLabel.style.cssText = 'font-size:0.85rem; display:flex; align-items:center; gap:0.4rem;';
+        alignLabel.title = 'Only matters when narrower than 100% — full width fills the column either way';
+        alignLabel.appendChild(document.createTextNode('Align'));
+        var alignSelect = document.createElement('select');
+        [['center', 'Center'], ['left', 'Left'], ['right', 'Right']].forEach(function (opt) {
+          var o = document.createElement('option');
+          o.value = opt[0];
+          o.textContent = opt[1];
+          if ((block.align || 'center') === opt[0]) o.selected = true;
+          alignSelect.appendChild(o);
+        });
+        alignSelect.addEventListener('change', function () {
+          blocks[i].align = alignSelect.value;
+          blocksField.value = JSON.stringify(blocks);
+          saveDraftSoon();
+        });
+        alignLabel.appendChild(alignSelect);
+        body.appendChild(alignLabel);
+
+        body.appendChild(makeSelectCheckbox(block));
+      } else if (block.type === 'row') {
+        var rowRef = document.createElement('div');
+        rowRef.style.cssText = 'display:flex; align-items:stretch; gap:0; margin-bottom:0.5rem; border:1px solid #eee; border-radius:4px; overflow:hidden;';
+        var cellEls = [];
+        block.cells.forEach(function (cell, ci) {
+          var cellEl = document.createElement('div');
+          cellEl.style.cssText = 'width:' + (cell.width_pct || (100 / block.cells.length)) + '%; padding:0.4rem; box-sizing:border-box;';
+          if (cell.type === 'photo') {
+            var cimg = document.createElement('img');
+            cimg.src = cell.url;
+            cimg.style.cssText = 'width:100%; display:block; border-radius:4px;';
+            cellEl.appendChild(cimg);
+          } else {
+            var cta = document.createElement('textarea');
+            cta.value = cell.content || '';
+            cta.rows = 3;
+            cta.style.cssText = 'width:100%; font-family:Georgia,serif; font-size:0.85rem;';
+            cta.addEventListener('input', function () {
+              cell.content = cta.value;
+              blocksField.value = JSON.stringify(blocks);
+            });
+            cta.addEventListener('blur', function () {
+              saveDraftSoon();
+            });
+            cellEl.appendChild(cta);
+          }
+          rowRef.appendChild(cellEl);
+          cellEls.push(cellEl);
+        });
+        for (var ci2 = 0; ci2 < cellEls.length - 1; ci2++) {
+          (function (idx) {
+            var bh = makeBoundaryResizable(
+              cellEls[idx], cellEls[idx + 1],
+              function () { return block.cells[idx].width_pct || (100 / block.cells.length); },
+              function () { return block.cells[idx + 1].width_pct || (100 / block.cells.length); },
+              function (l, r) {
+                block.cells[idx].width_pct = l;
+                block.cells[idx + 1].width_pct = r;
+                blocksField.value = JSON.stringify(blocks);
+                saveDraftSoon();
+              },
+              rowRef
+            );
+            rowRef.insertBefore(bh, cellEls[idx + 1]);
+          })(ci2);
+        }
+        body.appendChild(rowRef);
+
+        var caption = document.createElement('p');
+        caption.className = 'muted';
+        caption.style.cssText = 'font-size:0.8rem; margin:0 0 0.5rem;';
+        caption.textContent = block.cells.length + ' items side by side — drag the divider to resize';
+        body.appendChild(caption);
+
+        var ungroup = document.createElement('button');
+        ungroup.type = 'button';
+        ungroup.textContent = 'Ungroup';
+        ungroup.className = 'secondary outline';
+        ungroup.style.cssText = 'padding:0.1rem 0.6rem; font-size:0.8rem;';
+        ungroup.addEventListener('click', function () {
+          var expanded = block.cells.map(function (c) {
+            return c.type === 'photo' ? {type: 'photo', url: c.url, width_pct: 100} : {type: 'text', content: c.content || ''};
+          });
+          blocks.splice.apply(blocks, [i, 1].concat(expanded));
+          sync();
+        });
+        body.appendChild(ungroup);
+      } else {
+        var ta = document.createElement('textarea');
+        ta.value = block.content;
+        ta.rows = 4;
+        ta.placeholder = 'Paragraph text...';
+        ta.style.cssText = 'font-family:Georgia,serif;';
+        ta.addEventListener('input', function () {
+          blocks[i].content = ta.value;
+          blocksField.value = JSON.stringify(blocks);
+        });
+        ta.addEventListener('blur', function () {
+          window.__refreshOrSaveDraft();
+        });
+        body.appendChild(ta);
+        body.appendChild(makeSelectCheckbox(block));
+      }
+      row.appendChild(body);
+
+      var remove = document.createElement('button');
+      remove.type = 'button';
+      remove.textContent = 'Remove block';
+      remove.className = 'secondary outline';
+      remove.style.cssText = 'padding:0.1rem 0.6rem; font-size:0.8rem; margin-top:0.5rem;';
+      remove.addEventListener('click', function () {
+        blocks.splice(i, 1);
+        sync();
+      });
+      row.appendChild(remove);
+
+      listEl.appendChild(row);
+    });
+  }
+
+  window.addTextBlock = function () {
+    blocks.push({type: 'text', content: ''});
+    sync();
+  };
+
+  window.combineSelectedIntoRow = function () {
+    var selectedIdx = [];
+    blocks.forEach(function (b, i) { if ((b.type === 'photo' || b.type === 'text') && b._selectedForRow) selectedIdx.push(i); });
+    if (selectedIdx.length < 2 || selectedIdx.length > 3) {
+      alert('Select 2 or 3 blocks (check the box under each) to combine into a row.');
+      return;
+    }
+    var n = selectedIdx.length;
+    var cells = selectedIdx.map(function (i) {
+      var b = blocks[i];
+      return b.type === 'photo'
+        ? {type: 'photo', url: b.url, width_pct: Math.round(100 / n)}
+        : {type: 'text', content: b.content, width_pct: Math.round(100 / n)};
+    });
+    var insertAt = selectedIdx[0];
+    selectedIdx.slice().reverse().forEach(function (i) { blocks.splice(i, 1); });
+    blocks.splice(insertAt, 0, {type: 'row', cells: cells});
+    sync();
+  };
+
+  render();
+
+  // Loading this screen (including from a saved template) is navigation,
+  // not a database write. Save draft or a later meaningful edit persists it.
+
+  new Sortable(listEl, {
+    handle: '.drag-handle',
+    animation: 150,
+    // Native HTML5 drag-and-drop needs an OS-level drag gesture and is
+    // finicky across browsers/trackpads; the mouse-event-based fallback is
+    // more consistently reliable, so force it rather than relying on
+    // whatever the browser's native DnD support decides to do.
+    forceFallback: true,
+    onEnd: function (evt) {
+      if (evt.oldIndex === evt.newIndex) return;
+      var moved = blocks.splice(evt.oldIndex, 1)[0];
+      blocks.splice(evt.newIndex, 0, moved);
+      sync();
+    },
+  });
+})();
+
+(function () {
+  var input = document.getElementById('photo-input');
+  var list = document.getElementById('staged-photo-list');
+  var staged = [];
+
+  function formatSize(bytes) {
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+
+  function render() {
+    list.innerHTML = '';
+    staged.forEach(function (file, i) {
+      var li = document.createElement('li');
+      li.className = 'muted';
+      li.style.cssText = 'display:flex; justify-content:space-between; align-items:center; gap:0.5rem; font-size:0.8rem;';
+
+      var label = document.createElement('span');
+      label.textContent = file.name;
+      li.appendChild(label);
+
+      var removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.textContent = '×';
+      removeBtn.className = 'secondary outline';
+      removeBtn.style.cssText = 'padding:0 0.4rem; font-size:0.8rem;';
+      removeBtn.addEventListener('click', function () {
+        staged.splice(i, 1);
+        sync();
+      });
+      li.appendChild(removeBtn);
+
+      list.appendChild(li);
+    });
+  }
+
+  function sync() {
+    var dt = new DataTransfer();
+    staged.forEach(function (file) { dt.items.add(file); });
+    input.files = dt.files;
+    render();
+  }
+
+  input.addEventListener('change', function () {
+    for (var i = 0; i < input.files.length; i++) {
+      var file = input.files[i];
+      var alreadyStaged = staged.some(function (f) {
+        return f.name === file.name && f.size === file.size;
+      });
+      if (!alreadyStaged) {
+        staged.push(file);
+      }
+    }
+    sync();
+  });
+})();
+</script>
 {% endif %}
-
-<form method="post" action="{{ url_for('campaigns.generate_general') }}">
-  <label>Generate with AI — describe a topic and Claude will draft a subject + body below
-    <input type="text" name="topic" placeholder="e.g. Happy 4th of July from Austin Apex">
-  </label>
-  <button type="submit" class="secondary outline">Generate with AI</button>
-</form>
-
-<form method="post" action="{{ url_for('campaigns.send_general') }}">
-  <label>Subject
-    <input type="text" name="subject" value="{{ subject }}" placeholder="e.g. Happy 4th of July from Austin Apex!">
-  </label>
-
-  <label>Body (one paragraph per line)
-    <textarea name="body" rows="8">{{ body }}</textarea>
-  </label>
-
-  <div class="grid">
-    <label>Recipients
-      <select name="recipient_group">
-        {% for g in recipient_groups %}
-        <option value="{{ g }}" {% if g == recipient_group %}selected{% endif %}>{{ g }}</option>
-        {% endfor %}
-      </select>
-    </label>
-    <label>From account
-      <select name="account">
-        {% for a in accounts %}
-        <option value="{{ a }}" {% if a == selected_account %}selected{% endif %}>{{ a|title }}</option>
-        {% endfor %}
-      </select>
-    </label>
-  </div>
-
-  <div style="display:flex; gap:1rem;">
-    <button type="submit" name="dry_run" value="1" class="secondary">Preview send (dry run)</button>
-    <button type="submit" name="dry_run" value="0">Send now</button>
-  </div>
-
-  <hr>
-
-  <label>Save this subject/body as a reusable template
-    <input type="text" name="name" placeholder="e.g. 4th of July email">
-  </label>
-  <button type="submit" formaction="{{ url_for('campaigns.save_template') }}" formnovalidate class="secondary outline">Save as email template</button>
-</form>
 {% endblock %}

@@ -1,37 +1,36 @@
 {% extends "base.html" %}
 {% block title %}Campaigns — Austin Apex{% endblock %}
 {% block content %}
-<hgroup>
-  <h2>Campaigns</h2>
-  <p>
-    <a href="{{ url_for('campaigns.new_step1') }}" role="button">Start a new campaign</a>
-    <a href="{{ url_for('campaigns.new_general') }}" role="button" class="outline">Send a manual email</a>
-  </p>
-  <p class="muted"><a href="{{ url_for('campaigns.templates') }}">Saved email templates →</a></p>
-</hgroup>
+<div class="page-header">
+  <div><p class="eyebrow">Stay in touch</p><h1>Email campaigns</h1><p class="page-subtitle">Create polished listing emails, review drafts, and see what has already been sent.</p></div>
+  <div class="page-actions"><a href="{{ url_for('campaigns.new_step1') }}" role="button" class="primary-action">Email a listing</a><a href="{{ url_for('campaigns.new_general') }}" role="button" class="secondary">Write another email</a></div>
+</div>
 
 {% if campaigns %}
-<table class="review">
-  <thead><tr><th>Sent</th><th>Subject</th><th>Type</th><th>Recipients</th><th></th></tr></thead>
+<article class="data-card"><div class="table-wrap"><table class="review">
+  <thead><tr><th>Created</th><th>Subject</th><th>Type</th><th>Status</th><th></th></tr></thead>
   <tbody>
     {% for c in campaigns %}
     <tr>
       <td>{{ c.created_at.strftime('%b %d, %I:%M %p') if c.created_at else '' }}</td>
       <td>{{ c.subject }}</td>
-      <td>{{ c.email_type }}</td>
-      <td>{{ c.sent_count }}/{{ c.recipient_count }}{% if c.dry_run %} <span class="muted">(dry run)</span>{% endif %}</td>
+      <td>{{ (c.email_type or 'general')|replace('_', ' ')|title }}</td>
       <td>
-        <a href="{{ url_for('campaigns.detail', campaign_id=c.id) }}">Details</a>
+        {% if c.status in ('draft','scheduled','pending','failed') %}<span class="status status-{{ c.status }}">{{ 'Pending review' if c.status == 'pending' else c.status|title }}</span>
+        {% else %}<span class="status status-{{ 'draft' if c.dry_run else 'sent' }}">{{ 'Preview' if c.dry_run else 'Sent' }}</span> <small>{{ c.sent_count }}/{{ c.recipient_count }}</small>{% endif %}
+      </td>
+      <td><div class="row-actions">
+        <a href="{{ url_for('campaigns.edit_campaign', campaign_id=c.id) if c.status in ('draft','pending','scheduled') else url_for('campaigns.detail', campaign_id=c.id) }}">{{ 'Open' if c.status in ('draft','pending','scheduled') else 'Details' }}</a>
         <form method="post" action="{{ url_for('campaigns.delete_campaign', campaign_id=c.id) }}" style="display:inline;"
               onsubmit="return confirm('Delete this campaign and its send history? This cannot be undone.');">
-          <button type="submit" class="secondary outline" style="padding:0.1rem 0.6rem;">Delete</button>
+          <button type="submit" class="secondary outline compact-button">Delete</button>
         </form>
-      </td>
+      </div></td>
     </tr>
     {% endfor %}
   </tbody>
-</table>
+</table></div></article>
 {% else %}
-<p class="muted">No campaigns sent yet.</p>
+<div class="empty-state"><div class="empty-icon">✉</div><h3>No campaigns yet</h3><p>Choose a listing and we’ll turn it into a branded email.</p><a href="{{ url_for('campaigns.new_step1') }}" role="button">Email a listing</a></div>
 {% endif %}
 {% endblock %}

@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Listings — Austin Apex{% endblock %}
+{% block content %}
+<div class="page-header">
+  <div><p class="eyebrow">MLS marketing</p><h1>Choose a listing</h1><p class="page-subtitle">Start with a property, then choose whether to create an email campaign or social post.</p></div>
+  <div class="page-actions">
+    <form method="post" action="{{ url_for('campaigns.refresh_listings') }}" onsubmit="var b=this.querySelector('button');b.disabled=true;b.textContent='Refreshing photos…';"><button type="submit" class="primary-action">Refresh from MLS</button></form>
+    <a href="{{ url_for('social.new_general') }}" role="button" class="secondary">Post without a listing</a>
+  </div>
+</div>
+
+{% if listings %}
+<div class="listing-grid">
+  {% for l in listings %}
+  <article class="listing-card">
+    {% if l.photo_urls %}<img class="listing-photo lazy-listing-cover" data-src="{{ url_for('dashboard.listing_cover', listing_id=l.id) }}" alt="{{ l.address }}">
+    {% else %}<div class="listing-photo listing-placeholder"><span>Photo unavailable</span></div>{% endif %}
+    <div class="listing-body">
+      <span class="status status-{{ (l.status or '')|lower|replace(' ', '-') }}">{{ l.status or 'Listing' }}</span>
+      <h3>{{ l.address or 'Address unavailable' }}</h3>
+      <p class="listing-meta">{{ l.city or 'Austin area' }}</p>
+      <p class="listing-price">{% if l.list_price %}${{ "{:,.0f}".format(l.list_price) }}{% else %}Price available on request{% endif %}</p>
+      <div class="listing-actions">
+        <a href="{{ url_for('campaigns.new_step2', listing_id=l.listing_id) }}" role="button" class="primary-action">Create email</a>
+        <a href="{{ url_for('social.new', listing_id=l.listing_id) }}" role="button" class="secondary">Create post</a>
+      </div>
+    </div>
+  </article>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty-state"><div class="empty-icon">⌑</div><h3>Your listings will appear here</h3><p>Connect to MLS by refreshing the listing feed.</p><form method="post" action="{{ url_for('campaigns.refresh_listings') }}"><button type="submit">Refresh listings from MLS</button></form></div>
+{% endif %}
+<script>
+(function () {
+  // Each cover is fetched independently (not awaited one-at-a-time) so a
+  // slow or MLS-rate-limited cover doesn't block already-cached covers
+  // queued behind it from ever starting their own request.
+  var images = document.querySelectorAll('.lazy-listing-cover');
+  for (var i = 0; i < images.length; i++) {
+    images[i].src = images[i].dataset.src;
+  }
+})();
+</script>
+{% endblock %}

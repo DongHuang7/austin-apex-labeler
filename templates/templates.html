@@ -1,0 +1,123 @@
+{% extends "base.html" %}
+{% block title %}Templates — Austin Apex{% endblock %}
+{% block content %}
+<hgroup>
+  <h2>Templates</h2>
+  <p class="muted">Saved subject/body and captions for manual email and social posts, reusable and optionally recurring.</p>
+</hgroup>
+
+<h3>Email templates</h3>
+<p class="muted"><a href="{{ url_for('campaigns.new_general') }}">Start a manual email →</a></p>
+{% if email_templates %}
+<div style="overflow-x:auto;">
+<table class="review">
+  <thead><tr><th>Name</th><th>Subject</th><th>Body</th><th>Auto-send every year</th><th></th></tr></thead>
+  <tbody>
+    {% for t in email_templates %}
+    <tr>
+      <td>{{ t.name }}
+        {% if t.is_html %} <span class="muted">(from a listing email)</span>
+        {% elif not t.content_blocks %} <span class="muted">(listing description — pick it from "Start description from a template" when composing a listing email)</span>
+        {% endif %}
+      </td>
+      <td>{{ t.subject }}</td>
+      <td>{{ (t.body[:80] + '…') if not t.is_html and t.body|length > 80 else (t.body if not t.is_html else '(HTML email)') }}</td>
+      <td>
+        {% if t.scheduled_month %}
+        <p class="muted" style="margin:0;">
+          {{ t.scheduled_month }}/{{ t.scheduled_day }}, to {{ t.recipient_group }} as {{ t.account_owner|title }}
+          {% if t.last_triggered_year %} — last fired {{ t.last_triggered_year }}{% endif %}
+        </p>
+        <form method="post" action="{{ url_for('campaigns.unschedule_template', template_id=t.id) }}">
+          <button type="submit" class="secondary outline" style="padding:0.1rem 0.6rem; font-size:0.8rem;">Clear</button>
+        </form>
+        {% else %}
+        <form method="post" action="{{ url_for('campaigns.schedule_template', template_id=t.id) }}"
+              style="display:flex; gap:0.3rem; align-items:center; flex-wrap:wrap;">
+          <select name="scheduled_month" style="width:auto;">
+            {% for m in range(1, 13) %}<option value="{{ m }}">{{ m }}</option>{% endfor %}
+          </select>
+          <span>/</span>
+          <select name="scheduled_day" style="width:auto;">
+            {% for d in range(1, 32) %}<option value="{{ d }}">{{ d }}</option>{% endfor %}
+          </select>
+          <select name="account_owner" style="width:auto;">
+            {% for a in email_accounts %}<option value="{{ a }}">{{ a|title }}</option>{% endfor %}
+          </select>
+          <select name="recipient_group" style="width:auto;">
+            {% for g in recipient_groups %}<option value="{{ g }}">{{ g }}</option>{% endfor %}
+          </select>
+          <button type="submit" class="secondary outline" style="padding:0.1rem 0.6rem; font-size:0.8rem;">Schedule</button>
+        </form>
+        {% endif %}
+      </td>
+      <td>
+        {% if not t.is_html %}<a href="{{ url_for('campaigns.new_general', template_id=t.id) }}">Use</a>{% endif %}
+        <form method="post" action="{{ url_for('campaigns.delete_template', template_id=t.id) }}" style="display:inline;">
+          <button type="submit" class="secondary outline" style="padding:0.1rem 0.6rem;">Delete</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<p class="muted">No saved email templates yet — save one from the manual email editor.</p>
+{% endif %}
+
+<hr>
+
+<h3>Social post templates</h3>
+<p class="muted"><a href="{{ url_for('social.new_general') }}">Start a manual post →</a></p>
+{% if social_templates %}
+<div style="overflow-x:auto;">
+<table class="review">
+  <thead><tr><th>Name</th><th>Platform</th><th>Caption</th><th>Auto-post every year</th><th></th></tr></thead>
+  <tbody>
+    {% for t in social_templates %}
+    <tr>
+      <td>{{ t.name }}</td>
+      <td>{{ platform_labels.get(t.platform, t.platform) if t.platform else '—' }}</td>
+      <td>{{ t.body[:80] }}{% if t.body|length > 80 %}…{% endif %}</td>
+      <td>
+        {% if t.scheduled_month %}
+        <p class="muted" style="margin:0;">
+          {{ t.scheduled_month }}/{{ t.scheduled_day }}, as {{ t.account_owner|title }}
+          {% if t.last_triggered_year %} — last fired {{ t.last_triggered_year }}{% endif %}
+        </p>
+        <form method="post" action="{{ url_for('social.unschedule_template', template_id=t.id) }}">
+          <button type="submit" class="secondary outline" style="padding:0.1rem 0.6rem; font-size:0.8rem;">Clear</button>
+        </form>
+        {% else %}
+        <form method="post" action="{{ url_for('social.schedule_template', template_id=t.id) }}"
+              style="display:flex; gap:0.3rem; align-items:center; flex-wrap:wrap;">
+          <select name="scheduled_month" style="width:auto;">
+            {% for m in range(1, 13) %}<option value="{{ m }}">{{ m }}</option>{% endfor %}
+          </select>
+          <span>/</span>
+          <select name="scheduled_day" style="width:auto;">
+            {% for d in range(1, 32) %}<option value="{{ d }}">{{ d }}</option>{% endfor %}
+          </select>
+          <select name="account_owner" style="width:auto;">
+            {% for o in social_owners %}<option value="{{ o }}">{{ o|title }}</option>{% endfor %}
+          </select>
+          <button type="submit" class="secondary outline" style="padding:0.1rem 0.6rem; font-size:0.8rem;">Schedule</button>
+        </form>
+        {% endif %}
+      </td>
+      <td>
+        <a href="{{ url_for('social.new_general', template_id=t.id) }}">Use</a>
+        <form method="post" action="{{ url_for('social.delete_template', template_id=t.id) }}" style="display:inline;">
+          <button type="submit" class="secondary outline" style="padding:0.1rem 0.6rem;">Delete</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<p class="muted">No saved post templates yet — save one from the manual post editor.</p>
+{% endif %}
+{% endblock %}

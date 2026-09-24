@@ -10,30 +10,71 @@
   </p>
 </hgroup>
 
-<p>{{ campaign.sent_count }} sent / {{ campaign.recipient_count }} recipients</p>
+<article>
+  {% if campaign.status == 'scheduled' %}
+  <header>
+    <span class="badge">Scheduled</span>
+    for {% if campaign.scheduled_time %}{{ (campaign.scheduled_time|localtime).strftime('%b %d, %Y %I:%M %p %Z') }}{% endif %}
+    — to {{ campaign.recipient_group }} from {{ campaign.account|title }}
+  </header>
+  <div style="display:flex; gap:1rem;">
+    <form method="post" action="{{ url_for('campaigns.send_now', campaign_id=campaign.id) }}">
+      <button type="submit" class="contrast">Send now instead</button>
+    </form>
+    <a href="{{ url_for('campaigns.edit_campaign', campaign_id=campaign.id) }}" role="button" class="secondary outline">Edit</a>
+  </div>
+  {% elif campaign.status in ('draft', 'pending') %}
+  <header>
+    <span class="badge" style="background:#611a15;">{{ 'Draft' if campaign.status == 'draft' else 'Pending review' }}</span>
+    {% if campaign.status == 'pending' %}auto-created from a recurring template — {% endif %}nothing has been sent yet
+  </header>
+  <div style="display:flex; gap:1rem; margin-bottom:1rem;">
+    <form method="post" action="{{ url_for('campaigns.send_now', campaign_id=campaign.id) }}">
+      <button type="submit" class="contrast">Send now</button>
+    </form>
+    <a href="{{ url_for('campaigns.edit_campaign', campaign_id=campaign.id) }}" role="button" class="secondary outline">Edit</a>
+  </div>
+  <div class="email-preview">
+    <iframe srcdoc="{{ campaign.html_body_snapshot|e }}"></iframe>
+  </div>
+  {% else %}
+  <header><span class="badge" style="background:#1e4620;">Sent</span></header>
+  <p>{{ campaign.sent_count }} sent / {{ campaign.recipient_count }} recipients</p>
+  {% endif %}
+</article>
 
-<table class="review">
-  <thead><tr><th>Recipient</th><th>Status</th><th>Detail</th></tr></thead>
-  <tbody>
-    {% for s in sends %}
-    <tr>
-      <td>{{ s.recipient_name or s.recipient_email }}{% if s.recipient_name %} <span class="muted">({{ s.recipient_email }})</span>{% endif %}</td>
-      <td>
-        {% if s.status == 'sent' %}<span style="color:#1e4620;">Sent</span>
-        {% elif s.status == 'skipped' %}<span class="muted">Skipped</span>
-        {% elif s.status == 'failed' %}<span style="color:#611a15;">Failed</span>
-        {% endif %}
-      </td>
-      <td class="muted">{{ s.error or '' }}</td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
+{% if sends %}
+<article>
+  <header><strong>Recipients</strong></header>
+  <div style="overflow-x:auto;">
+  <table class="review">
+    <thead><tr><th>Recipient</th><th>Status</th><th>Detail</th></tr></thead>
+    <tbody>
+      {% for s in sends %}
+      <tr>
+        <td>{{ s.recipient_name or s.recipient_email }}{% if s.recipient_name %} <span class="muted">({{ s.recipient_email }})</span>{% endif %}</td>
+        <td>
+          {% if s.status == 'sent' %}<span style="color:#1e4620;">Sent</span>
+          {% elif s.status == 'skipped' %}<span class="muted">Skipped</span>
+          {% elif s.status == 'failed' %}<span style="color:#611a15;">Failed</span>
+          {% endif %}
+        </td>
+        <td class="muted">{{ s.error or '' }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  </div>
+</article>
+{% endif %}
 
-<hr>
-
-<form method="post" action="{{ url_for('campaigns.delete_campaign', campaign_id=campaign.id) }}"
-      onsubmit="return confirm('Delete this campaign and its send history? This cannot be undone.');">
-  <button type="submit" class="secondary outline">Delete this campaign</button>
-</form>
+<details>
+  <summary role="button" class="secondary outline">Danger zone</summary>
+  <div style="padding-top:0.75rem;">
+    <form method="post" action="{{ url_for('campaigns.delete_campaign', campaign_id=campaign.id) }}"
+          onsubmit="return confirm('Delete this campaign and its send history? This cannot be undone.');">
+      <button type="submit" class="secondary outline">Delete this campaign</button>
+    </form>
+  </div>
+</details>
 {% endblock %}

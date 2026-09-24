@@ -8,6 +8,7 @@ notes in the project plan). None of this can be exercised end-to-end until
 that approval lands; until then routes/social.py's /social/accounts/connect
 will fail with a clear "not configured" error rather than a confusing one.
 """
+import json
 import os
 from datetime import datetime, timedelta, timezone
 
@@ -73,11 +74,26 @@ def list_pages(user_token: str) -> list:
     return resp.json().get("data", [])
 
 
-def publish_to_facebook_page(page_id: str, page_access_token: str, message: str, image_url: str = None) -> str:
+def publish_to_facebook_page(page_id: str, page_access_token: str, message: str,
+                             image_url: str = None, image_urls: list = None) -> str:
     """Returns the published post's id."""
-    if image_url:
+    images = list(dict.fromkeys(image_urls or ([image_url] if image_url else [])))[:3]
+    if len(images) > 1:
+        media_ids = []
+        for url in images:
+            upload = requests.post(f"{GRAPH_URL}/{page_id}/photos", data={
+                "url": url, "published": "false", "access_token": page_access_token,
+            })
+            upload.raise_for_status()
+            media_ids.append(upload.json()["id"])
+        resp = requests.post(f"{GRAPH_URL}/{page_id}/feed", data={
+            "message": message,
+            "attached_media": json.dumps([{"media_fbid": media_id} for media_id in media_ids]),
+            "access_token": page_access_token,
+        })
+    elif images:
         resp = requests.post(f"{GRAPH_URL}/{page_id}/photos", data={
-            "url": image_url, "caption": message, "access_token": page_access_token,
+            "url": images[0], "caption": message, "access_token": page_access_token,
         })
     else:
         resp = requests.post(f"{GRAPH_URL}/{page_id}/feed", data={
@@ -87,14 +103,29 @@ def publish_to_facebook_page(page_id: str, page_access_token: str, message: str,
     return resp.json()["id"]
 
 
-def publish_to_instagram(ig_user_id: str, page_access_token: str, caption: str, image_url: str) -> str:
+def publish_to_instagram(ig_user_id: str, page_access_token: str, caption: str,
+                         image_url: str = None, image_urls: list = None) -> str:
     """Two-step publish per Meta's Content Publishing API. Returns the
     published media's id. image_url must be a publicly reachable HTTPS URL —
     MLSGrid's Media URLs should work, but verify resolution/aspect ratio
     meets Instagram's requirements before relying on this for every listing."""
-    container_resp = requests.post(f"{GRAPH_URL}/{ig_user_id}/media", data={
-        "image_url": image_url, "caption": caption, "access_token": page_access_token,
-    })
+    images = list(dict.fromkeys(image_urls or ([image_url] if image_url else [])))[:3]
+    if len(images) > 1:
+        children = []
+        for url in images:
+            child_resp = requests.post(f"{GRAPH_URL}/{ig_user_id}/media", data={
+                "image_url": url, "is_carousel_item": "true", "access_token": page_access_token,
+            })
+            child_resp.raise_for_status()
+            children.append(child_resp.json()["id"])
+        container_resp = requests.post(f"{GRAPH_URL}/{ig_user_id}/media", data={
+            "media_type": "CAROUSEL", "children": ",".join(children),
+            "caption": caption, "access_token": page_access_token,
+        })
+    else:
+        container_resp = requests.post(f"{GRAPH_URL}/{ig_user_id}/media", data={
+            "image_url": images[0], "caption": caption, "access_token": page_access_token,
+        })
     container_resp.raise_for_status()
     container_id = container_resp.json()["id"]
 

@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}History — Austin Apex{% endblock %}
+{% block content %}
+<hgroup>
+  <h2>History</h2>
+  <p class="muted">Every email campaign and social post, past and upcoming.</p>
+</hgroup>
+
+<article>
+  <div class="grid">
+    <div>
+      <strong>Channel</strong><br>
+      <a href="{{ url_for('dashboard.history', status=status_filter, channel='all') }}" {% if channel_filter == 'all' %}style="font-weight:bold;"{% endif %}>All</a> ·
+      <a href="{{ url_for('dashboard.history', status=status_filter, channel='email') }}" {% if channel_filter == 'email' %}style="font-weight:bold;"{% endif %}>Email</a> ·
+      <a href="{{ url_for('dashboard.history', status=status_filter, channel='social') }}" {% if channel_filter == 'social' %}style="font-weight:bold;"{% endif %}>Social</a>
+    </div>
+    <div>
+      <strong>Status</strong><br>
+      <a href="{{ url_for('dashboard.history', status='all', channel=channel_filter) }}" {% if status_filter == 'all' %}style="font-weight:bold;"{% endif %}>All</a> ·
+      <a href="{{ url_for('dashboard.history', status='open', channel=channel_filter) }}" {% if status_filter == 'open' %}style="font-weight:bold;"{% endif %}>Open</a> ·
+      <a href="{{ url_for('dashboard.history', status='done', channel=channel_filter) }}" {% if status_filter == 'done' %}style="font-weight:bold;"{% endif %}>Sent/Posted</a>
+    </div>
+  </div>
+</article>
+
+{% if items %}
+<div style="overflow-x:auto;">
+<table class="review">
+  <thead><tr><th>When</th><th>Channel</th><th>What</th><th>Who</th><th>Status</th></tr></thead>
+  <tbody>
+    {% for i in items %}
+    <tr>
+      <td>{{ i.when.strftime('%b %d, %Y %I:%M %p') if i.when else '' }}</td>
+      <td>{{ 'Email' if i.kind == 'email' else 'Social' }}</td>
+      <td><a href="{{ url_for(i.url[0], **i.url[1]) }}">{{ i.what }}</a></td>
+      <td>{{ i.who|title }}</td>
+      <td>
+        {% if i.status in ('sent', 'posted') %}<span style="color:#1e4620;">{{ i.status|title }}</span>
+        {% elif i.status in ('scheduled', 'pending') %}<span style="color:#264653;">{{ i.status|title }}</span>
+        {% elif i.status == 'failed' %}<span style="color:#611a15;">Failed</span>
+        {% else %}<span class="muted">{{ i.status|title }}</span>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<p class="muted">Nothing here yet.</p>
+{% endif %}
+{% endblock %}

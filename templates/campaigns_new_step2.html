@@ -1,50 +1,251 @@
 {% extends "base.html" %}
 {% block title %}Compose Email — Austin Apex{% endblock %}
 {% block content %}
-<hgroup>
-  <h2>{{ listing.address }}, {{ listing.city }}</h2>
-  <p class="muted"><a href="{{ url_for('campaigns.new_step1') }}">← Back to listings</a></p>
+<hgroup class="compose-hero">
+  <p class="eyebrow">Email a listing</p>
+  <h2>Create a polished property email</h2>
+  <p class="page-subtitle"><strong>{{ listing.address }}</strong>{% if listing.city %}, {{ listing.city }}{% endif %} · Review the message, choose your audience, then save or send.</p>
+  <a class="back-link" href="{{ url_for('dashboard.listings') }}">← Choose a different listing</a>
 </hgroup>
 
-<form method="get" action="{{ url_for('campaigns.new_step2', listing_id=listing.listing_id) }}">
-  <div class="grid">
-    <label>Email type
-      <select name="email_type" onchange="this.form.submit()">
+<form method="post" action="{{ url_for('campaigns.send', listing_id=listing.listing_id) }}"
+      enctype="multipart/form-data" id="compose-form" class="realtor-composer">
+  {% for url in photo_urls %}
+  <input type="hidden" name="photo_urls" value="{{ url }}">
+  {% endfor %}
+  <input type="hidden" name="layout" value="{{ layout }}">
+  <button type="submit" id="refresh-btn" formaction="{{ url_for('campaigns.new_step2', listing_id=listing.listing_id) }}"
+          formmethod="get" formnovalidate style="display:none;" aria-hidden="true"></button>
+
+  <div class="composer-main-column">
+  <article class="composer-card">
+    <header><span class="step-number">1</span><span><strong>Review your email</strong><small>We created this from the MLS listing. Make any changes you want.</small></span></header>
+    <label>Email occasion
+      <select name="email_type" onchange="window.__stepRefreshOrSaveDraft()">
         {% for key, label in email_types.items() %}
         <option value="{{ key }}" {% if key == email_type %}selected{% endif %}>{{ label }}</option>
         {% endfor %}
       </select>
     </label>
-    <label>Recipients (label group)
-      <select name="recipient_group" onchange="this.form.submit()">
-        {% for g in recipient_groups %}
-        <option value="{{ g }}" {% if g == recipient_group %}selected{% endif %}>{{ g }}</option>
-        {% endfor %}
-      </select>
+
+    <div class="subject-preview"><span>Subject line</span><strong>{{ subject }}</strong></div>
+    <div class="email-preview">
+      <iframe srcdoc="{{ html_preview|e }}"></iframe>
+    </div>
+
+    <label style="margin-top:1rem;">Property description
+      <textarea name="description" id="description-field" rows="6"
+                onblur="window.__stepRefreshOrSaveDraft()">{{ description }}</textarea>
     </label>
-    <label>From account
-      <select name="account" onchange="this.form.submit()">
-        {% for a in accounts %}
-        <option value="{{ a }}" {% if a == selected_account %}selected{% endif %}>{{ a|title }}</option>
-        {% endfor %}
-      </select>
+    <small class="field-help">Your MLS listing stays unchanged. This only edits the email.</small>
+    <button type="button" onclick="window.__stepRefreshOrSaveDraft()" class="secondary outline">Refresh email preview</button>
+  </article>
+
+  <article class="composer-card">
+    <header><span class="step-number">2</span><span><strong>Choose the best photos</strong><small>The first photo is the main image. Remove any you do not want.</small></span></header>
+    {% if photo_urls %}
+    <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(120px, 1fr)); gap:0.5rem; margin-bottom:1rem;">
+      {% for url in photo_urls %}
+      <div>
+        <img src="{{ url }}" style="width:100%;border-radius:6px;">
+        <button type="button" class="secondary outline stateless-remove-photo" data-url="{{ url }}"
+                style="padding:0.1rem 0.6rem; font-size:0.8rem; width:100%;">Remove</button>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <label>Add your own photos
+      <input type="file" name="photo" id="photo-input" accept="image/*" multiple>
     </label>
+    <p class="field-help">JPG, PNG, GIF, or WEBP · up to 8MB each.</p>
+    <ul id="staged-photo-list" style="list-style:none; padding:0; margin:0 0 0.5rem;"></ul>
+    <p class="notice-soft">Save the draft first, then you can upload additional photos.</p>
+  </article>
   </div>
+
+  <aside class="composer-side-column">
+  <article class="composer-card action-card">
+    <header><span class="step-number">3</span><span><strong>Choose who receives it</strong><small>You are always in control before anything sends.</small></span></header>
+    <button type="button" id="save-draft-button" class="secondary save-draft-action">Save and finish later</button>
+    <p class="muted" id="draft-save-status" aria-live="polite"></p>
+    <div class="grid">
+      <label>Send to
+        <select name="recipient_group" onchange="window.__stepRefreshOrSaveDraft()">
+          {% for g in recipient_groups %}
+          <option value="{{ g }}" {% if g == recipient_group %}selected{% endif %}>{{ g }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>Send from
+        <select name="account" onchange="window.__stepRefreshOrSaveDraft()">
+          {% for a in accounts %}
+          <option value="{{ a }}" {% if a == selected_account %}selected{% endif %}>{{ a|title }}</option>
+          {% endfor %}
+        </select>
+      </label>
+    </div>
+
+    <button type="submit" name="check_recipients" value="1"
+            formaction="{{ url_for('campaigns.new_step2', listing_id=listing.listing_id) }}"
+            formmethod="get" formnovalidate class="secondary outline full-button">Preview recipient list</button>
+
+    {% if recipients is not none %}
+    <label style="margin-top:1rem;"><strong>This will go to {{ recipients|length }} {{ recipient_group }}{{ 's' if recipients|length != 1 }}</strong> (uncheck anyone to skip them)</label>
+    <input type="hidden" name="recipients_checked" value="1">
+    {% if recipients %}
+    <div style="max-height:240px; overflow-y:auto; border:1px solid #ddd; border-radius:6px; padding:0.5rem 1rem; margin-bottom:1rem;">
+      {% for r in recipients %}
+      <label style="display:block;">
+        <input type="checkbox" name="recipient_email" value="{{ r.email }}" checked>
+        {{ r.name or r.email }} {% if r.name %}<span class="muted">({{ r.email }})</span>{% endif %}
+      </label>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="muted">No contacts found in this group for {{ selected_account|title }}.</p>
+    {% endif %}
+    {% endif %}
+
+    <label style="margin-top:1rem;">Send later <small>(CDT)</small>
+      <input type="datetime-local" name="scheduled_time">
+    </label>
+
+    <button type="submit" name="dry_run" value="0" class="primary-action full-button">Send email now</button>
+    <button type="submit" formaction="{{ url_for('campaigns.test_send') }}" formnovalidate
+            class="secondary outline full-button">Send me a test first</button>
+    <button type="submit" name="dry_run" value="1" class="text-action">Create a no-send preview record</button>
+  </article>
+
+  <input type="hidden" name="listing_id" value="{{ listing.listing_id }}">
+
+  <details>
+    <summary>Save as a reusable template</summary>
+    <div style="padding-top:0.75rem;">
+      <label>Template name
+        <input type="text" name="name" placeholder="e.g. Just Listed template">
+      </label>
+      <input type="hidden" name="subject" value="{{ subject }}">
+      <input type="hidden" name="body" value="{{ html_preview }}">
+      <input type="hidden" name="is_html" value="1">
+      <button type="submit" formaction="{{ url_for('campaigns.save_template') }}" formnovalidate
+              class="secondary outline">Save as email template</button>
+    </div>
+  </details>
+  </aside>
 </form>
 
-<h3>Preview</h3>
-<p><strong>Subject:</strong> {{ subject }}</p>
-<div class="email-preview">
-  <iframe srcdoc="{{ html_preview|e }}"></iframe>
-</div>
+<script>
+(function () {
+  // Opening and editing this page is stateless. Only Save draft persists.
+  var draftUrl = '{{ url_for("campaigns.create_step2_draft", listing_id=listing.listing_id) }}';
+  var draftInFlight = false;
 
-<form method="post" action="{{ url_for('campaigns.send', listing_id=listing.listing_id) }}" style="margin-top:1rem;">
-  <input type="hidden" name="email_type" value="{{ email_type }}">
-  <input type="hidden" name="recipient_group" value="{{ recipient_group }}">
-  <input type="hidden" name="account" value="{{ selected_account }}">
-  <div style="display:flex; gap:1rem;">
-    <button type="submit" name="dry_run" value="1" class="secondary">Preview send (dry run)</button>
-    <button type="submit" name="dry_run" value="0">Send to {{ recipient_group }}s now</button>
-  </div>
-</form>
+  function currentStepFields() {
+    var descEl = document.getElementById('description-field');
+    var emailTypeEl = document.querySelector('select[name="email_type"]');
+    var groupEl = document.querySelector('select[name="recipient_group"]');
+    var accountEl = document.querySelector('select[name="account"]');
+    var body = new URLSearchParams();
+    body.set('description', descEl ? descEl.value : '');
+    body.set('email_type', emailTypeEl ? emailTypeEl.value : '');
+    body.set('recipient_group', groupEl ? groupEl.value : 'Buyer');
+    body.set('account', accountEl ? accountEl.value : 'yifan');
+    body.set('layout', document.querySelector('input[name="layout"]').value);
+    document.querySelectorAll('input[name="photo_urls"]').forEach(function (el) {
+      body.append('photo_urls', el.value);
+    });
+    return body;
+  }
+
+  function saveDraft() {
+    if (draftInFlight) return;
+    draftInFlight = true;
+    var status = document.getElementById('draft-save-status');
+    status.textContent = 'Saving…';
+    fetch(draftUrl, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: currentStepFields().toString(),
+    }).then(function (r) { return r.json(); }).then(function (data) {
+      if (data.ok) {
+        window.location.href = '/campaigns/' + data.id + '/edit';
+      } else {
+        draftInFlight = false;
+        status.textContent = data.error || 'Save failed';
+      }
+    }).catch(function () {
+      draftInFlight = false;
+      status.textContent = 'Save failed';
+    });
+  }
+
+  document.getElementById('save-draft-button').addEventListener('click', saveDraft);
+  document.querySelectorAll('.stateless-remove-photo').forEach(function (button) {
+    button.addEventListener('click', function () {
+      document.querySelectorAll('input[name="photo_urls"]').forEach(function (input) {
+        if (input.value === button.dataset.url) input.remove();
+      });
+      button.closest('div').remove();
+    });
+  });
+  window.__stepRefreshOrSaveDraft = function () {
+    document.getElementById('refresh-btn').click();
+  };
+
+  var input = document.getElementById('photo-input');
+  var list = document.getElementById('staged-photo-list');
+  var staged = [];
+
+  function formatSize(bytes) {
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+
+  function render() {
+    list.innerHTML = '';
+    staged.forEach(function (file, i) {
+      var li = document.createElement('li');
+      li.className = 'muted';
+      li.style.cssText = 'display:flex; justify-content:space-between; align-items:center; gap:0.5rem;';
+
+      var label = document.createElement('span');
+      label.textContent = file.name + ' (' + formatSize(file.size) + ')';
+      li.appendChild(label);
+
+      var removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.textContent = 'Remove';
+      removeBtn.className = 'secondary outline';
+      removeBtn.style.cssText = 'padding:0.1rem 0.6rem; font-size:0.8rem;';
+      removeBtn.addEventListener('click', function () {
+        staged.splice(i, 1);
+        sync();
+      });
+      li.appendChild(removeBtn);
+
+      list.appendChild(li);
+    });
+  }
+
+  function sync() {
+    var dt = new DataTransfer();
+    staged.forEach(function (file) { dt.items.add(file); });
+    input.files = dt.files;
+    render();
+  }
+
+  input.addEventListener('change', function () {
+    for (var i = 0; i < input.files.length; i++) {
+      var file = input.files[i];
+      var alreadyStaged = staged.some(function (f) {
+        return f.name === file.name && f.size === file.size;
+      });
+      if (!alreadyStaged) {
+        staged.push(file);
+      }
+    }
+    sync();
+  });
+})();
+</script>
 {% endblock %}

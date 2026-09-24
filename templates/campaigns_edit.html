@@ -1,0 +1,251 @@
+{% extends "base.html" %}
+{% block title %}Edit Campaign — Austin Apex{% endblock %}
+{% block content %}
+<hgroup>
+  <h2>Edit: {{ campaign.subject }}</h2>
+  <p class="muted">
+    <a href="{{ url_for('campaigns.detail', campaign_id=campaign.id) }}">← Back to campaign</a> ·
+    {% if campaign.status == 'pending' %}Pending review.
+    {% elif campaign.status == 'draft' %}Draft.
+    {% else %}Scheduled for {% if campaign.scheduled_time %}{{ (campaign.scheduled_time|localtime).strftime('%b %d, %Y %I:%M %p %Z') }}{% endif %}.
+    {% endif %}
+    The description saves automatically as you edit; photos save the moment you upload/remove them.
+    Nothing is sent until you click Send. <span class="muted" id="autosave-status" style="font-size:0.85rem;"></span>
+  </p>
+</hgroup>
+
+{% if campaign.layout == 'listing_collection' %}
+<article>
+  <header><strong>Properties in this collection</strong></header>
+  <p>The first property is {{ listing.address }}. Select up to seven more MLS listings below; each gets its own photo, description, price, and details link.</p>
+  <form method="post" action="{{ url_for('campaigns.update_listing_collection', campaign_id=campaign.id) }}">
+    <div style="max-height:260px;overflow:auto;">
+      {% for item in collection_choices %}
+      <label><input type="checkbox" name="collection_listing_id" value="{{ item.id }}" {% if item.id in collection_selected %}checked{% endif %}> {{ item.address }}, {{ item.city }} <small>{{ item.status or '' }}</small></label>
+      {% endfor %}
+    </div>
+    {% for entry in collection_entries %}
+    <label>Description for {{ entry.listing.get('UnparsedAddress', 'property') }}
+      <textarea name="collection_description_{{ entry.listing_id }}" rows="3">{{ entry.description }}</textarea>
+    </label>
+    {% endfor %}
+    <button type="submit" class="secondary">Update collection</button>
+  </form>
+</article>
+{% endif %}
+
+<form method="post" action="{{ url_for('campaigns.save_campaign_edit', campaign_id=campaign.id) }}"
+      enctype="multipart/form-data" id="edit-form">
+  <input type="hidden" name="campaign_id" value="{{ campaign.id }}">
+  <input type="hidden" name="listing_id" value="{{ listing.listing_id }}">
+  {% for url in photo_urls %}
+  <input type="hidden" name="photo_urls" value="{{ url }}">
+  {% endfor %}
+
+  <article>
+    <header><strong>Content</strong></header>
+    <p class="muted" style="margin-bottom:0.75rem;">{{ listing.address }}, {{ listing.city }} — layout: {{ layout_name }} (fixed at compose time)</p>
+    <label>Email type
+      <select name="email_type" onchange="if (window.refreshPreview) refreshPreview();">
+        {% for key, label in email_types.items() %}
+        <option value="{{ key }}" {% if key == campaign.email_type %}selected{% endif %}>{{ label }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <div class="email-preview">
+      <iframe srcdoc="{{ html_preview|e }}"></iframe>
+    </div>
+
+    <label style="margin-top:1rem;">Description (edits the write-up in this email only — the listing record itself is unchanged)
+      <textarea name="description" id="description-field" rows="6"
+                onblur="if (window.refreshPreview) refreshPreview();">{{ description }}</textarea>
+    </label>
+    <button type="button" onclick="if (window.refreshPreview) refreshPreview();" class="secondary outline">Update preview</button>
+  </article>
+
+  <article>
+    <header><strong>Photos</strong> <span class="muted">— {{ photo_urls|length }} attached; the first shows as the header image, the design arranges up to four additional photos; Listing Collection uses one hero per property</span></header>
+    {% if photo_urls %}
+    <div style="display:grid; grid-template-columns:repeat(auto-fill, minmax(120px, 1fr)); gap:0.5rem; margin-bottom:1rem;">
+      {% for url in photo_urls %}
+      <div>
+        <img src="{{ url }}" style="width:100%;border-radius:6px;">
+        <button type="submit" name="remove_url" value="{{ url }}"
+                formaction="{{ url_for('campaigns.remove_campaign_photo', campaign_id=campaign.id) }}" formnovalidate
+                class="secondary outline" style="padding:0.1rem 0.6rem; font-size:0.8rem; width:100%;">Remove</button>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+
+    <label>Add photos
+      <input type="file" name="photo" id="photo-input" accept="image/*" multiple>
+    </label>
+    <p class="muted">Any image file (JPG, PNG, GIF, WEBP, etc.) — up to 8MB each. You can pick files more than once; each pick adds to the list below instead of replacing it.</p>
+    <ul id="staged-photo-list" style="list-style:none; padding:0; margin:0 0 0.5rem;"></ul>
+    <button type="submit" formaction="{{ url_for('campaigns.upload_campaign_photo', campaign_id=campaign.id) }}" formnovalidate
+            class="secondary outline">Upload photo(s)</button>
+  </article>
+
+  <article>
+    <header><strong>Recipients &amp; send</strong></header>
+    <div class="grid">
+      <label>Recipients (label group)
+        <select name="recipient_group" onchange="if (window.refreshPreview) refreshPreview();">
+          {% for g in recipient_groups %}
+          <option value="{{ g }}" {% if g == campaign.recipient_group %}selected{% endif %}>{{ g }}</option>
+          {% endfor %}
+        </select>
+      </label>
+      <label>From account
+        <select name="account" onchange="if (window.refreshPreview) refreshPreview();">
+          {% for a in accounts %}
+          <option value="{{ a }}" {% if a == campaign.account %}selected{% endif %}>{{ a|title }}</option>
+          {% endfor %}
+        </select>
+      </label>
+    </div>
+
+    <button type="submit" formaction="{{ url_for('campaigns.check_recipients_campaign', campaign_id=campaign.id) }}"
+            formnovalidate class="secondary outline">Check recipients</button>
+
+    {% if recipients is not none %}
+    <label style="margin-top:1rem;"><strong>This will go to {{ recipients|length }} {{ campaign.recipient_group }}{{ 's' if recipients|length != 1 }}</strong> (uncheck anyone to skip them)</label>
+    <input type="hidden" name="recipients_checked" value="1">
+    {% if recipients %}
+    <div style="max-height:240px; overflow-y:auto; border:1px solid #ddd; border-radius:6px; padding:0.5rem 1rem; margin-bottom:1rem;">
+      {% for r in recipients %}
+      <label style="display:block;">
+        <input type="checkbox" name="recipient_email" value="{{ r.email }}" checked>
+        {{ r.name or r.email }} {% if r.name %}<span class="muted">({{ r.email }})</span>{% endif %}
+      </label>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="muted">No contacts found in this group for {{ campaign.account|title }}.</p>
+    {% endif %}
+    {% endif %}
+
+    <label style="margin-top:1rem;">Schedule for later, CDT (optional — leave blank to send/preview now)
+      <input type="datetime-local" name="scheduled_time"
+             value="{% if campaign.scheduled_time %}{{ (campaign.scheduled_time|localtime).strftime('%Y-%m-%dT%H:%M') }}{% endif %}">
+    </label>
+
+    <div class="grid">
+      <button type="submit" name="dry_run" value="1"
+              formaction="{{ url_for('campaigns.send_campaign_edit', campaign_id=campaign.id) }}" formnovalidate
+              class="secondary">Preview send (dry run)</button>
+      <button type="submit" name="dry_run" value="0"
+              formaction="{{ url_for('campaigns.send_campaign_edit', campaign_id=campaign.id) }}" formnovalidate>Send to {{ campaign.recipient_group }}s now</button>
+    </div>
+    <button type="submit" formaction="{{ url_for('campaigns.test_send') }}" formnovalidate
+            class="secondary outline" style="width:100%;">Send test to me</button>
+  </article>
+
+  <details>
+    <summary role="button" class="secondary outline">Save this email as a reusable template</summary>
+    <div style="padding-top:0.75rem;">
+      <label>Template name
+        <input type="text" name="name" placeholder="e.g. Just Listed template">
+      </label>
+      <input type="hidden" name="subject" value="{{ subject }}">
+      <input type="hidden" name="body" value="{{ html_preview }}">
+      <input type="hidden" name="is_html" value="1">
+      <button type="submit" formaction="{{ url_for('campaigns.save_template') }}" formnovalidate
+              class="secondary outline">Save as email template</button>
+    </div>
+  </details>
+</form>
+
+<script>
+(function () {
+  var descEl = document.getElementById('description-field');
+  var statusEl = document.getElementById('autosave-status');
+  var autosaveUrl = '{{ url_for("campaigns.autosave_campaign_description", campaign_id=campaign.id) }}';
+
+  function doAutosave() {
+    if (statusEl) statusEl.textContent = 'Saving…';
+    var emailTypeEl = document.querySelector('select[name="email_type"]');
+    var groupEl = document.querySelector('select[name="recipient_group"]');
+    var accountEl = document.querySelector('select[name="account"]');
+    var body = new URLSearchParams({description: descEl.value});
+    if (emailTypeEl) body.set('email_type', emailTypeEl.value);
+    if (groupEl) body.set('recipient_group', groupEl.value);
+    if (accountEl) body.set('account', accountEl.value);
+    return fetch(autosaveUrl, {
+      method: 'POST',
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: body.toString(),
+    }).then(function (r) {
+      if (statusEl) statusEl.textContent = r.ok ? 'Saved' : 'Save failed';
+    }).catch(function () {
+      if (statusEl) statusEl.textContent = 'Save failed';
+    });
+  }
+
+  // "Update preview" must autosave FIRST (awaited) — the reload shows
+  // whatever's in the database, so reloading before the edit is saved
+  // would show stale content and look like the edit was lost.
+  window.refreshPreview = function () {
+    doAutosave().then(function () { location.reload(); });
+  };
+})();
+
+(function () {
+  var input = document.getElementById('photo-input');
+  var list = document.getElementById('staged-photo-list');
+  var staged = [];
+
+  function formatSize(bytes) {
+    return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
+  }
+
+  function render() {
+    list.innerHTML = '';
+    staged.forEach(function (file, i) {
+      var li = document.createElement('li');
+      li.className = 'muted';
+      li.style.cssText = 'display:flex; justify-content:space-between; align-items:center; gap:0.5rem; font-size:0.8rem;';
+
+      var label = document.createElement('span');
+      label.textContent = file.name + ' (' + formatSize(file.size) + ')';
+      li.appendChild(label);
+
+      var removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.textContent = '×';
+      removeBtn.className = 'secondary outline';
+      removeBtn.style.cssText = 'padding:0 0.4rem; font-size:0.8rem;';
+      removeBtn.addEventListener('click', function () {
+        staged.splice(i, 1);
+        sync();
+      });
+      li.appendChild(removeBtn);
+
+      list.appendChild(li);
+    });
+  }
+
+  function sync() {
+    var dt = new DataTransfer();
+    staged.forEach(function (file) { dt.items.add(file); });
+    input.files = dt.files;
+    render();
+  }
+
+  input.addEventListener('change', function () {
+    for (var i = 0; i < input.files.length; i++) {
+      var file = input.files[i];
+      var alreadyStaged = staged.some(function (f) {
+        return f.name === file.name && f.size === file.size;
+      });
+      if (!alreadyStaged) {
+        staged.push(file);
+      }
+    }
+    sync();
+  });
+})();
+</script>
+{% endblock %}

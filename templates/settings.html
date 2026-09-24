@@ -1,11 +1,11 @@
 {% extends "base.html" %}
-{% block title %}Connected Accounts — Austin Apex{% endblock %}
+{% block title %}Settings — Austin Apex{% endblock %}
 {% block content %}
 <hgroup>
-  <h2>Connected accounts</h2>
-  <p class="muted"><a href="{{ url_for('social.list_posts') }}">← Back to social posts</a></p>
+  <h2>Settings</h2>
 </hgroup>
 
+<h3>Connected social accounts</h3>
 {% if not meta_configured %}
 <div class="flash flash-error">Facebook/Instagram aren't set up yet — META_APP_ID/META_APP_SECRET need to be configured, and the app needs Meta's Business verification + App Review before this will work.</div>
 {% endif %}
@@ -13,6 +13,7 @@
 <div class="flash flash-error">LinkedIn isn't set up yet — LINKEDIN_CLIENT_ID/LINKEDIN_CLIENT_SECRET need to be configured.</div>
 {% endif %}
 
+<div style="overflow-x:auto;">
 <table class="review">
   <thead>
     <tr><th>Agent</th>{% for p in platforms %}<th>{{ platform_labels[p] }}</th>{% endfor %}</tr>
@@ -36,4 +37,37 @@
     {% endfor %}
   </tbody>
 </table>
+</div>
+
+<hr>
+
+<h3>Account</h3>
+<p><a href="{{ url_for('auth.change_password') }}" role="button" class="outline">Change password</a></p>
+
+<hr>
+
+<h3>Unsubscribed contacts</h3>
+<p class="muted">Anyone who clicked "Unsubscribe" in a campaign email — future campaigns automatically skip them.</p>
+{% if suppressed %}
+<div style="overflow-x:auto;">
+<table class="review">
+  <thead><tr><th>Email</th><th>Unsubscribed</th><th></th></tr></thead>
+  <tbody>
+    {% for s in suppressed %}
+    <tr>
+      <td>{{ s.email }}</td>
+      <td>{% if s.unsubscribed_at %}{{ (s.unsubscribed_at|localtime).strftime('%b %d, %Y') }}{% endif %}</td>
+      <td>
+        <form method="post" action="{{ url_for('dashboard.resubscribe', suppression_id=s.id) }}">
+          <button type="submit" class="secondary outline" style="padding:0.1rem 0.6rem;">Re-subscribe</button>
+        </form>
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<p class="muted">Nobody has unsubscribed.</p>
+{% endif %}
 {% endblock %}

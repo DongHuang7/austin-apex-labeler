@@ -1,37 +1,61 @@
 {% extends "base.html" %}
-{% block title %}Dashboard — Austin Apex{% endblock %}
+{% block title %}Home — Austin Apex{% endblock %}
 {% block content %}
-<h2>Welcome, {{ current_user.display_name }}</h2>
+<div class="page-header">
+  <div>
+    <p class="eyebrow">Your workspace</p>
+    <h1>Good to see you, {{ (current_user.display_name or 'Agent').split()[0] }}.</h1>
+    <p class="page-subtitle">Here’s what needs your attention and what your team has shared recently.</p>
+  </div>
+  <div class="page-actions">
+    <a href="{{ url_for('dashboard.listings') }}" role="button" class="primary-action">Create from a listing</a>
+    <a href="{{ url_for('campaigns.new_general') }}" role="button" class="secondary">Write an email</a>
+  </div>
+</div>
 
-<div class="grid">
-  <article>
-    <h3>Contacts to review</h3>
-    <p style="font-size: 2.5rem; margin: 0;">{{ pending_count }}</p>
-    <a href="{{ url_for('contacts.review') }}" role="button">Review now</a>
+<div class="metric-grid">
+  <article class="metric-card">
+    <h3>New contacts</h3><div class="metric">{{ pending_count }}</div>
+    <p>People waiting for your review.</p><a href="{{ url_for('contacts.review') }}">Review contacts →</a>
   </article>
-  <article>
-    <h3>Send a listing email</h3>
-    <p class="muted">Pick a listing, preview the email, send it to buyers/sellers/brokers.</p>
-    <a href="{{ url_for('campaigns.new_step1') }}" role="button">Start a campaign</a>
+  <article class="metric-card">
+    <h3>Email drafts</h3><div class="metric">{{ pending_campaigns or 0 }}</div>
+    <p>Campaigns ready to check or send.</p><a href="{{ url_for('dashboard.history', status='open') }}">Open email drafts →</a>
+  </article>
+  <article class="metric-card">
+    <h3>Social drafts</h3><div class="metric">{{ draft_posts or 0 }}</div>
+    <p>Posts waiting for a final look.</p><a href="{{ url_for('social.list_posts') }}">Open social drafts →</a>
+  </article>
+  <article class="metric-card">
+    <h3>Active listings</h3><div class="metric">⌑</div>
+    <p>Turn an MLS listing into marketing.</p><a href="{{ url_for('dashboard.listings') }}">Browse listings →</a>
   </article>
 </div>
 
-<h3>Recent campaigns</h3>
+<div class="section-heading"><h2>Recent email activity</h2><a href="{{ url_for('dashboard.history') }}">See all activity →</a></div>
 {% if recent_campaigns %}
-<table class="review">
-  <thead><tr><th>Sent</th><th>Subject</th><th>Recipients</th><th></th></tr></thead>
-  <tbody>
-    {% for c in recent_campaigns %}
-    <tr>
-      <td>{{ c.created_at.strftime('%b %d, %I:%M %p') if c.created_at else '' }}</td>
-      <td>{{ c.subject }}</td>
-      <td>{{ c.sent_count }}/{{ c.recipient_count }}{% if c.dry_run %} <span class="muted">(dry run)</span>{% endif %}</td>
-      <td><a href="{{ url_for('campaigns.detail', campaign_id=c.id) }}">Details</a></td>
-    </tr>
-    {% endfor %}
-  </tbody>
-</table>
-{% else %}
-<p class="muted">No campaigns sent yet.</p>
-{% endif %}
+<article class="data-card"><div class="table-wrap"><table class="review">
+  <thead><tr><th>Date</th><th>Email</th><th>Delivery</th><th>Status</th><th></th></tr></thead>
+  <tbody>{% for c in recent_campaigns %}<tr>
+    <td class="muted">{{ c.created_at.strftime('%b %d, %I:%M %p') if c.created_at else '' }}</td>
+    <td><strong>{{ c.subject }}</strong></td><td>{{ c.sent_count }}/{{ c.recipient_count }} recipients</td>
+    <td><span class="status status-{{ 'draft' if c.dry_run else (c.status or 'sent') }}">{{ 'Preview' if c.dry_run else (c.status or 'sent')|title }}</span></td>
+    <td><a href="{{ url_for('campaigns.detail', campaign_id=c.id) }}">View</a></td>
+  </tr>{% endfor %}</tbody>
+</table></div></article>
+{% else %}<div class="empty-state"><div class="empty-icon">✉</div><h3>No email activity yet</h3><p>Your sent and scheduled campaigns will appear here.</p><a href="{{ url_for('dashboard.listings') }}" role="button">Create your first campaign</a></div>{% endif %}
+
+<div class="section-heading"><h2>Recent social posts</h2><a href="{{ url_for('social.list_posts') }}">See all posts →</a></div>
+{% if recent_posts %}
+<article class="data-card"><div class="table-wrap"><table class="review">
+  <thead><tr><th>Date</th><th>Channel</th><th>Caption</th><th>Status</th><th></th></tr></thead>
+  <tbody>{% for p in recent_posts %}<tr>
+    <td class="muted">{{ p.created_at.strftime('%b %d, %I:%M %p') if p.created_at else '' }}</td>
+    <td><strong>{{ platform_labels.get(p.platform, p.platform) }}</strong></td>
+    <td class="caption-preview">{{ (p.final_caption or p.draft_caption or '')[:80] }}{% if (p.final_caption or p.draft_caption or '')|length > 80 %}…{% endif %}</td>
+    <td><span class="status status-{{ p.status }}">{{ p.status|title }}</span></td>
+    <td><a href="{{ url_for('social.edit', post_id=p.id) }}">Open</a></td>
+  </tr>{% endfor %}</tbody>
+</table></div></article>
+{% else %}<div class="empty-state"><div class="empty-icon">◎</div><h3>No social posts yet</h3><p>Choose a listing and we’ll help you draft one.</p><a href="{{ url_for('dashboard.listings') }}" role="button">Choose a listing</a></div>{% endif %}
 {% endblock %}

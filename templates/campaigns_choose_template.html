@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Choose a Template — Austin Apex{% endblock %}
+{% block content %}
+<style>
+  /* Fixed-width cards (rather than a responsive fr-based grid) so the
+     iframe's scale factor below can exactly match the thumbnail's width —
+     260/600 = 0.4333 — with no leftover whitespace or overflow. */
+  .template-grid { display: flex; flex-wrap: wrap; gap: 1.5rem; margin-top: 1rem; }
+  .template-card {
+    display: block; width: 260px; border: 1px solid #e2e2e2; border-radius: 8px; overflow: hidden;
+    background: #fff; color: inherit; text-decoration: none; transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .template-card:focus-visible { outline:3px solid #264653; outline-offset:4px; }
+  .template-card:hover { border-color: #264653; box-shadow: 0 2px 14px rgba(0,0,0,0.1); }
+  .template-thumb {
+    position: relative; width: 260px; height: 320px; overflow: hidden; background: #eef0f1; border-bottom: 1px solid #e2e2e2;
+  }
+  /* The iframe renders the email at its real 600px width, then gets scaled
+     down to thumbnail size — this is a live render of the actual email
+     (real photos, real formatting), not a static screenshot or text
+     excerpt, same idea as a Mailchimp template gallery card. */
+  .template-thumb iframe {
+    position: absolute; top: 0; left: 0; width: 600px; height: 1600px; border: none;
+    transform: scale(0.43333); transform-origin: top left; pointer-events: none;
+  }
+  .template-card h4 { margin: 0.85rem 1rem 0.25rem; }
+  .template-card p.hint { margin: 0 1rem 0.85rem; font-size: 0.85rem; line-height:1.6; color: #596b70; }
+</style>
+
+<hgroup>
+  <h2>{{ listing.address }}, {{ listing.city }}</h2>
+  <p class="muted"><a href="{{ url_for('dashboard.listings') }}">← Back to listings</a> · Choose a template for this listing's email — each design uses this listing’s photos, price, facts, and description.</p>
+</hgroup>
+
+<div class="template-grid">
+  {% for opt in options %}
+  <a class="template-card" href="{{ url_for('campaigns.start_listing_campaign', listing_id=listing.listing_id, template_id=opt.template_id, layout=opt.layout) }}">
+    <div class="template-thumb">
+      <iframe sandbox title="{{ opt.name }} email preview" loading="lazy" srcdoc="{{ opt.html_preview|e }}" tabindex="-1" scrolling="no"></iframe>
+    </div>
+    <h4>{{ opt.name }}</h4>
+    <p class="hint">{{ opt.hint }}</p>
+  </a>
+  {% endfor %}
+</div>
+{% endblock %}
