@@ -15,6 +15,7 @@ from datetime import datetime, timedelta, timezone
 import requests
 
 API_BASE = "https://api.linkedin.com/rest"
+USERINFO_URL = "https://api.linkedin.com/v2/userinfo"
 AUTH_BASE = "https://www.linkedin.com/oauth/v2"
 LINKEDIN_VERSION = "202405"
 
@@ -61,15 +62,50 @@ def exchange_code_for_token(code: str, redirect_uri: str) -> tuple:
 
 
 def get_member_urn(access_token: str) -> str:
-    resp = requests.get(f"{API_BASE}/userinfo", headers={
+    """OpenID Connect's userinfo lives under /v2/, not the versioned
+    /rest/ Restli API (that's for Posts/Images/Marketing endpoints)."""
+    resp = requests.get(USERINFO_URL, headers={
         "Authorization": f"Bearer {access_token}",
-        "LinkedIn-Version": LINKEDIN_VERSION,
     })
     resp.raise_for_status()
     return f"urn:li:person:{resp.json()['sub']}"
 
 
-def publish_post(author_urn: str, access_token: str, text: str, image_url: str = None) -> str:
+def _upload_image(owner_urn: str, access_token: str, image_url: str) -> str:
+    """Uploads one image to LinkedIn's Images API and returns its
+    urn:li:image:... id, for use as post content. Two-step process:
+    initializeUpload gets a pre-signed PUT target, then the raw bytes are
+    PUT there directly (image_url must be a publicly fetchable https URL —
+    LinkedIn doesn't accept file uploads, and we don't proxy the bytes
+    ourselves, so we re-fetch from image_url instead of trusting a local
+    copy)."""
+    init_resp = requests.post(
+        f"{API_BASE}/images?action=initializeUpload",
+        json={"initializeUploadRequest": {"owner": owner_urn}},
+        headers={
+            "Authorization": f"Bearer {access_token}",
+            "LinkedIn-Version": LINKEDIN_VERSION,
+            "Content-Type": "application/json",
+            "X-Restli-Protocol-Version": "2.0.0",
+        },
+    )
+    init_resp.raise_for_status()
+    value = init_resp.json()["value"]
+    upload_url = value["uploadUrl"]
+    image_urn = value["image"]
+
+    image_bytes = requests.get(image_url, timeout=15)
+    image_bytes.raise_for_status()
+
+    put_resp = requests.put(upload_url, data=image_bytes.content, headers={
+        "Authorization": f"Bearer {access_token}",
+    })
+    put_resp.raise_for_status()
+    return image_urn
+
+
+def publish_post(author_urn: str, access_token: str, text: str,
+                 image_url: str = None, image_urls: list = None) -> str:
     """author_urn is either urn:li:person:<id> or urn:li:organization:<id>.
     Returns the created post's id (from the response's x-restli-id header)."""
     body = {
@@ -79,12 +115,15 @@ def publish_post(author_urn: str, access_token: str, text: str, image_url: str =
         "distribution": {"feedDistribution": "MAIN_FEED", "targetEntities": [], "thirdPartyDistributionChannels": []},
         "lifecycleState": "PUBLISHED",
     }
-    if image_url:
-        # LinkedIn requires images to be uploaded via their Images API and
-        # referenced by URN, not linked directly — a fuller implementation
-        # would call /rest/images (initializeUpload) first. Text-only posts
-        # work with the body above as-is.
-        pass
+    images = list(dict.fromkeys(image_urls or ([image_url] if image_url else [])))[:3]
+    if len(images) > 1:
+        body["content"] = {"multiImage": {"images": [
+            {"id": _upload_image(author_urn, access_token, url), "altText": "Property photograph"}
+            for url in images
+        ]}}
+    elif images:
+        image_urn = _upload_image(author_urn, access_token, images[0])
+        body["content"] = {"media": {"id": image_urn}}
 
     resp = requests.post(f"{API_BASE}/posts", json=body, headers={
         "Authorization": f"Bearer {access_token}",
