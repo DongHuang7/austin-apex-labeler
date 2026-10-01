@@ -17,7 +17,9 @@ import requests
 API_BASE = "https://api.linkedin.com/rest"
 USERINFO_URL = "https://api.linkedin.com/v2/userinfo"
 AUTH_BASE = "https://www.linkedin.com/oauth/v2"
-LINKEDIN_VERSION = "202405"
+# LinkedIn sunsets each monthly API version ~1 year after release — this
+# needs bumping periodically (see LinkedIn's versioning docs).
+LINKEDIN_VERSION = "202609"
 
 CLIENT_ID = os.environ.get("LINKEDIN_CLIENT_ID")
 CLIENT_SECRET = os.environ.get("LINKEDIN_CLIENT_SECRET")
