@@ -1,1 +1,1 @@
-web: flask db upgrade && gunicorn app:app --timeout 120
+web: flask db upgrade && gunicorn app:app --timeout 120 --workers 2 --threads 4
